@@ -3,5 +3,6 @@
 
 #!! ERROR: zola is undefined. Use list command to see defined gitignore types !!#
 public/
+*.tar.gz
 
 # End of https://www.toptal.com/developers/gitignore/api/zola
