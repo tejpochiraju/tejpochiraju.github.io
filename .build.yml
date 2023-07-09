@@ -1,0 +1,18 @@
+image: alpine/edge
+packages:
+  - hut
+  - zola
+oauth: pages.sr.ht/PAGES:RW
+environment:
+  site: tej.srht.site
+sources:
+  - https://git.sr.ht/~tej/website
+tasks:
+  - build: |
+      cd website
+      zola build
+  - package: |
+      cd website
+      tar -C public -cvz . > ../site.tar.gz
+  - upload: |
+      hut pages publish -d $site site.tar.gz
