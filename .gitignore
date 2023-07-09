@@ -1,0 +1,7 @@
+# Created by https://www.toptal.com/developers/gitignore/api/zola
+# Edit at https://www.toptal.com/developers/gitignore?templates=zola
+
+#!! ERROR: zola is undefined. Use list command to see defined gitignore types !!#
+public/
+
+# End of https://www.toptal.com/developers/gitignore/api/zola
