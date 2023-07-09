@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     {% if page.title %}
     <title>{{ page.title }} </title>
     {% else %}
@@ -95,6 +96,15 @@ blockquote{
   font-style: italic;
   color: #1d1d1d;
   font-family: sans-serif;
+}
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 1.0em;
+  }
+
+  nav ul li {
+    font-size: 0.9em;
+  }
 }
   </style>
 </html>
