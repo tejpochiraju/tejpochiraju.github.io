@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Tej Pochiraju</title>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/work">Work</a></li>
+        <li><a href="https://iotready.co" target="_blank">IoTReady</a></li>
+        <li><a href="mailto:e@tej.sh">&#9993;</a></li>
+        <li><a href="https://www.linkedin.com/in/tejpochiraju" target="_blank">&#128279; In</a></li>
+      </ul>
+    </nav>
+    <section>
+      <div>
+        {% block content %} {% endblock %}
+      </div>
+    </section>
+  </body>
+
+  <style>
+html {
+  max-width: 70ch;
+  padding: 3em 1em;
+  margin: auto;
+  line-height: 1.75;
+  font-size: 1.25em;
+}
+
+h1,h2,h3,h4,h5,h6 {
+  margin: 3em 0 1em;
+}
+
+p,ul,ol {
+  margin-bottom: 2em;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+
+nav ul {
+  list-style: none;  /* removes the default bullet points of ul */
+  padding: 0;        /* removes the default padding of ul */
+  display: flex;     /* makes the li items display in a row */
+  justify-content: flex-start; /* distributes the li items evenly with space around them */
+}
+
+nav ul li {
+  margin-right: 1em; /* Adds space to the right of each li element */
+}
+
+img {
+  max-width: 70ch;
+  height: auto;
+  max-height: 600px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add space between columns and rows */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th, td {
+  border-bottom: 10px; /* Adjust the color to match your page background */
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+}
+/* Highlight alternate rows */
+tr:nth-child(even) {
+  background-color: #e2e2e2;
+}
+  </style>
+</html>
