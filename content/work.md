@@ -15,7 +15,7 @@ higher, market-ready tiers. I expect that I will return to lower tiers in the fu
 I run [IoTReady.co](https://iotready.co) where we build [simple](https://www.youtube.com/watch?v=SxdOUGdseq4),
 industrial-grade IoT products. 
 Our focus is on intelligent, single-purpose edge computing devices such as RFID readers,
-barcode scanners, print controllers & data loggers. Most of our hardware is build using microcontrollers
+barcode scanners, print controllers & data loggers. Most of our hardware is built using microcontrollers
 and C with some built using GNU/Linux and single-board computers. Our core cloud platform is 
 built using Elixir and our workflow solutions are built using Python. I spend my time between sales, marketing,
 cloud infrastructure, GNU/Linux, Python and Elixir. As a (profitable) bootstrapped venture, my job is
