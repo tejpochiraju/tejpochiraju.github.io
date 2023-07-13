@@ -10,7 +10,7 @@ published = false
 work really well for the most part.
 
 However, a `bench restart` is disruptive and necessitates downtime. Quite a few of our apps can't afford downtime outside of specific,
-short (<30 minute) windows. 
+short (<30 minute) windows at odd off-peak hours. 
 For hotfixes in such cases, I have now started using a [built-in feature of Gunicorn](https://docs.gunicorn.org/en/stable/signals.html#binary-upgrade) 
 to do zero downtime updates when making Python code changes.
 
@@ -18,7 +18,7 @@ The documentation link above explains the flow quite well. Here's my workflow:
 
 - `git pull` inside the app directory, e.g. `frappe-bench/apps/iotready_otp`
 - Look up the PID using `htop` after enabling `tree` view (`F5`) - the top PID from which the branches (workers) begin is the one we are after
-- Send the following signals in sequence:
+- Send the following signals in sequence (you can, of course, send these from within the `htop` UI with `F9`):
     - `kill -USR2 <pid>`
     - `kill -WINCH <pid>`
     - `kill -TERM <pid>`
