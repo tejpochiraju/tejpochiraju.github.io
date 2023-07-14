@@ -13,7 +13,7 @@ of 100K+ records. Since these files are logically grouped together, we don't
 use Frappe's Data Import UI. And since the files are uploaded and updated by end users, we don't
 use `bench import-csv` either. 
 
-> Data Import is implemented as a wrapper for _row by row_ insert/update.
+> Frappe's Data Import is implemented as a wrapper for _row by row_ insert/update.
 
 When dealing with 100s of thousands of rows each day, row by row updates and inserts are not
 an option - these just take too long (think hours). So, imagine my surprise when ChatGPT suggested
