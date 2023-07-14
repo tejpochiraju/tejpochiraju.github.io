@@ -45,7 +45,7 @@ Here's the workflow before we dive into the code:
 1. User attaches 2-3 bulk files to a custom doctype (e.g. `Trip Report`).
 2. Using document hooks we parse the files row by row to look for validation errors.
 3. We create (in-memory) instances of the doctype we are importing (e.g. `Trip`).
-4. We serialise these documents and store them in a Redis lists.
+4. We serialise these documents and store them in a Redis list.
 5. Once completely parsed, we retrieve the documents from Redis and bulk write them 
 to the DB in batches.
 
@@ -163,7 +163,8 @@ db.bulk_insert(doctype)
 
 ## Notes & Improvements
 
-- `deferred_insert` is not necessary here. You could aggregate the records and pass them to 
-`bulk_insert` directly. I prefer this pattern.
+- `deferred_insert` is not necessary here. You could aggregate the records in a normal Python
+list and pass them to `bulk_insert` directly. I prefer this queue pattern as it allows me to decouple
+DB inserts completely if I want to.
 - The built-in `frappe.db.bulk_insert` does not support conflicts/updates. I am porting some of my 
 SQL code that handles this over to the Query builder. Will post once completed.
