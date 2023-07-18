@@ -2,7 +2,6 @@
 title = "Phone and OTP Auth For Frappe"
 date = 2023-07-17
 published = true
-[taxonomies]
 categories = ["python, frappe, otp, authentication"]
 +++
 
