@@ -1,8 +1,9 @@
 +++
 title = "Phone and OTP Auth For Frappe"
 date = 2023-07-17
-categories = "python, frappe, otp, authentication"
 published = true
+[taxonomies]
+categories = ["python, frappe, otp, authentication"]
 +++
 
 A lot of our end-users belong to the non-email majority. For such users, we have long preferred
@@ -108,7 +109,7 @@ def verify_otp_for_phone(phone, otp):
 
 ```
 
-We then call expose these functions via an `api.py`:
+We then expose these functions via `api.py` so they can be called from our mobile apps:
 
 ```python
 import frappe
@@ -129,7 +130,7 @@ def verify_otp(phone, otp):
 
 ### Notes
 
-- We typically don't pass the `domain` parameter and instead configure this per site in `site_config.json`
+- You don't have to pass the `domain` parameter and could instead configure this per site in `site_config.json`
 - You could modify Frappe's response status code and throw a `403` in case of incorrect OTPs. 
 
 
