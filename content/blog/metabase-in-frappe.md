@@ -27,7 +27,7 @@ There's a simpler way to approach this:
 - use Frappe roles and Metabase dashboard filters to show the users only what they need/are allowed to see.
 - abstract this pattern to embed multiple dashboards.
 
-The Metabase setup is quite simple. The important things to note are the `Editable` filters and enabling embeds in your global configuration. Once you have done this, you need to note your dashboard ID (shown in the URL as well as the `Code` tab).
+The Metabase setup is quite simple and [well documented](https://www.metabase.com/docs/latest/embedding/introduction). The important things to note are the `Editable` filters and enabling embeds in your global configuration. Once you have done this, you need to note your dashboard ID (shown in the URL as well as the `Code` tab).
 
 ![Metabase Dashboard Setup](/images/metabase_embed.png)
 
@@ -59,6 +59,9 @@ The Python function (`get_warehouse_dashboard` in this case) is page specific. T
 
 ```python
 # Controller code
+import frappe
+import jwt
+import time
 
 @frappe.whitelist()
 def get_warehouse_dashboard():
@@ -71,7 +74,7 @@ def get_warehouse_dashboard():
     else:
         # get_list filters Warehouse by user specific permissions.
         warehouses = [r[0] for r in frappe.get_list("Warehouse", as_list=True)]
-        params = {"store": warehouses}
+        params = {"warehouse": warehouses}
     return get_metabase_dashboard(dashboard_id, params)
 
 def get_metabase_dashboard(dashboard_id: int, params={}):
@@ -104,7 +107,6 @@ And here's the `HTML` template. The embedded script makes the iframe responsive.
 <script>
     // Selecting the iframe element
     var frame = document.getElementById("Iframe");
-
     // Adjusting the iframe height onload event
     frame.onload = function ()
     // function execute while load the iframe
@@ -113,13 +115,10 @@ And here's the `HTML` template. The embedded script makes the iframe responsive.
         // the height of the iframe content
         frame.style.height =
             frame.contentWindow.document.body.scrollHeight + 'px';
-
-
         // set the width of the iframe as the 
         // width of the iframe content
         frame.style.width =
             frame.contentWindow.document.body.scrollWidth + 'px';
-
     }
 </script>
 ```
@@ -127,4 +126,5 @@ And here's the `HTML` template. The embedded script makes the iframe responsive.
 ### Notes
 
 - This works well in a desktop layout but Metabase dashboards are not a great fit for mobile (even with the responsive code above).
-- Test your filters thoroughly - especially if you are at risk of leaking sensitive information.
+- Test your filters thoroughly - especially if you are at risk of leaking sensitive information, e.g. in a multi-tenant environment.
+- If exposing the Metabase instance directly to customers, it's nicer to [hide all tables by default](https://github.com/metabase/metabase/issues/2146#issue-140719155) and only enable the ones you want to showcase.
