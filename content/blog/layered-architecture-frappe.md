@@ -9,11 +9,18 @@ Being different is raison d'etre for web frameworks. And Frappe is more differen
 
 Frappe's revolutionary concept is the use of _apps_ to organise functionality. Frappe itself is an app and all other apps depend on the Frappe app. A typical deployment or `site` will contain multiple apps that together provide the functionality that the site needs. The most common, and certainly the largest, Frappe app is ERPNext. When you need to provide customer specific ERPNext functionality, you install Frappe, ERPNext and your custom app that depends on these too. The application stack looks like this:
 
-| App Stack     |
-| --            |
-| Custom App    |
-| ERPNext       |
-| Frappe        |
+<table style="border: 1px solid black; border-collapse: collapse;">
+  <tr>
+    <td style="border: 1px solid black;">Custom App</td>
+  </tr>
+  <tr>
+    <td style="border: 1px solid black;">ERPNext</td>
+  </tr>
+  <tr>
+    <td style="border: 1px solid black;">Frappe</td>
+  </tr>
+</table>
+
 
 In this stack, Frappe knows nothing about ERPNext or your custom app. ERPnext depends on Frappe but knows nothing about your custom app. Your custom app depends on Frappe and ERPNext. 
 
@@ -26,7 +33,7 @@ This is how I have been building Frappe apps, with or without ERPNext, for 5 yea
 
 Layering is not all rosy though. As the Kraken Tech blog above notes, layering also induces incentives to make the top layers heavier. This obviously reduces code reuse. The approach they suggest to counteract this tendency is to use [Inversion Of Control](https://seddonym.me/2019/04/15/inversion-of-control/). Another phrase that I had heard in passing but never explored or understood. 
 
-And once you read about it, you realise that this is implemented in Frappe and too and we use it on a daily basis. [`hooks`](https://frappeframework.com/docs/v14/user/en/python-api/hooks) are essentially Frappe's way to maintaining sanity and providing inversion of control. 
+And once you read about it, you realise that this is implemented in Frappe too and we use it on a daily basis. [`hooks`](https://frappeframework.com/docs/v14/user/en/python-api/hooks) are essentially Frappe's way to provide inversion of control. 
 
 {% mermaid() %}
 graph TD;
@@ -34,7 +41,7 @@ graph TD;
     Frappe-. hooks .->CustomApp;
 {% end %}
 
-Now, I realise that most frameworks have event hooks but few have it for the number of events that Frappe does. Event hooks allow for some pretty great customisability. Especially, when paired with overrides for DocType classes and Form scripts.
+Now, I realise that most frameworks have event hooks but few have it for the number of events that Frappe does. Event hooks allow for some pretty great customisability. Especially when paired with overrides for DocType classes and Form scripts.
 
 > We use overrides for classes and scripts very sparingly because it's easy to lose track of where some custom behaviour is coming from. Instead, we abstract some of these use cases into separate DocTypes, e.g. a `User Profile` linked to each `User`.
 
@@ -77,15 +84,15 @@ Now, obviously, you have to implement the hook somewhere. We usually do this in 
 
 - **+** Using inversion of control allows you to use core APIs (and UIs) as they are and build/test your custom functionality independently.
 - **+** This allows for significant code reuse and keeps customer-specific code out of your core functionality.
-- **-** It does however mean that some functionality is harder to build and may future, unforeseen requirements to the core functionality. 
+- **-** It does however mean that some functionality is harder to build and may require future, unforeseen requirements to the core functionality. 
 - **-** All changes to the core have to be carefully evaluated to avoid impacting other customers.
 
 
 ## Conclusions
 
-Layering and inversion of control are both very useful architectural principles structuring code - especially when you are in B2B space like us and often need customer-specific functionality. 
+Layering and inversion of control are both very useful architectural principles for structuring code - especially when you are in a B2B space like us and often need customer-specific functionality. 
 
-Our code base is not too massive so making changes to follow these principles is not too difficult. Frappe encourages these architectures so we are in solid ground already. 
+Our code base is small enough that making changes to follow these principles is not too difficult. Frappe encourages these architectures so we are on solid ground already. 
 
 For the reasons listed above vis-a-vis inversion, we now lean towards using the layered approach as a default and use inversion of control as a pragmatic escape hatch. This means, for instance, that we are evaluating a small API rewrite so that the `record_events` API is exposed via the customer app rather than our core traceability app. More when we complete our evaluation.
 
