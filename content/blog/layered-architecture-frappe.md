@@ -5,9 +5,9 @@ published = true
 categories = ["python, frappe"]
 +++
 
-Being different is raison d'etre for web frameworks. And Frappe is more different than most. There was a time when Frappe's [architecture diagram](https://frappeframework.com/docs/v14/user/en/basics/architecture) was one of the first things you saw in the documentation. Today, it's buried a long, long way down in the table of contents.
+Being different is table stakes for web frameworks. And Frappe is more different than most. There was a time when Frappe's [architecture diagram](https://frappeframework.com/docs/v14/user/en/basics/architecture) was one of the first things you saw in the documentation and understanding it was key to get started. Today, it's buried a long, long way down in the table of contents - presumably as part of an effort to make the framework seem less daunting.
 
-Frappe's revolutionary concept is the use of _apps_ to organise functionality. Frappe itself is an app and all other apps depend on the Frappe app. A typical deployment or `site` will contain multiple apps that together provide the functionality that the site needs. The most common, and certainly the largest, Frappe app is ERPNext. When you need to provide customer specific ERPNext functionality, you install Frappe, ERPNext and your custom app that depends on these too. The application stack looks like this:
+Frappe's revolutionary concept, besides being metadata driven, is the use of _apps_ to organise functionality. Frappe itself is an app and all other apps depend on the Frappe app. A typical deployment or `site` will contain multiple apps that together provide the functionality that the site needs. The most common, and certainly the largest, Frappe app is ERPNext. When you need to provide customer specific ERPNext functionality, you install Frappe, ERPNext and your custom app that depends on these two. The application stack looks like this:
 
 <table style="border: 1px solid black; border-collapse: collapse;">
   <tr>
@@ -22,9 +22,9 @@ Frappe's revolutionary concept is the use of _apps_ to organise functionality. F
 </table>
 
 
-In this stack, Frappe knows nothing about ERPNext or your custom app. ERPnext depends on Frappe but knows nothing about your custom app. Your custom app depends on Frappe and ERPNext. 
+In this stack, Frappe knows nothing about ERPNext or your custom app. ERPnext depends on Frappe but knows nothing about your custom app. Your custom app depends on Frappe and ERPNext. So on and so forth.
 
-This is how I have been building Frappe apps, with or without ERPNext, for 5 years now. And [until yesterday](https://blog.europython.eu/kraken-technologies-how-we-organize-our-very-large-pythonmonolith/), I didn't realise that this follows the best practices of layered architecture. Frappe's architecture documentation does not mention layering once. However, on reflection, I think this architecture is what makes working in Frappe so productive.
+This is how I have been building Frappe apps, with or without ERPNext, for 5 years now. And [until yesterday](https://blog.europython.eu/kraken-technologies-how-we-organize-our-very-large-pythonmonolith/), I didn't realise that this follows the best practices of layered architecture. Even Frappe's documentation does not mention layering once. On reflection, I think this architecture is what makes working in Frappe so productive.
 
 > And, very, occasionally hairy when something you don't control shifts from underneath you.
 
