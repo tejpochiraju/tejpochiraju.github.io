@@ -5,7 +5,7 @@ published = true
 categories = ["python, frappe"]
 +++
 
-In a Frappe site with 100s of users and 10s of DocTypes, ensuring everyone has appropriate access levels can quickly get quite tricky. Especially if you have an app with a large number of roles. Frappe's built-in `Role Permission Manager` does not quite cut it as it does not show user to doctype mapping. This short post shows we have manage this.
+In a Frappe site with 100s of users and 10s of DocTypes, ensuring everyone has appropriate access levels can quickly get quite tricky. Especially if you have an app with a large number of roles. Frappe's built-in `Role Permission Manager` does not quite cut it as it does not show user to doctype mapping. This short post shows we manage this.
 
 We have a simple SQL query in Metabase that displays all the doctypes a user has access to. We review this about once a week to ensure privileges are not being granted to users who should not really have them.
 
