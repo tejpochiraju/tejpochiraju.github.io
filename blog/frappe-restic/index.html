@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="The personal website of an experienced technologist 
+      and co-founder of IoTReady.co. Embracing frugal iterations over long-term plans.">
+    
+    <title>Incremental Backups For Frappe Using Restic </title>
+    
+    <link rel="shortcut icon" href="/favicon.png">
+    <script defer data-domain="tej.sh" src="https://plausible.tej.sh/js/script.js"></script>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/work">Work</a></li>
+        <li><a href="https://iotready.co" target="_blank">IoTReady</a></li>
+        <li><a href="mailto:e@tej.sh">&#9993;</a></li>
+        <li><a href="https://www.linkedin.com/in/tejpochiraju" target="_blank">&#128279; In</a></li>
+      </ul>
+    </nav>
+    <section>
+      <div>
+        
+<h1>
+  Incremental Backups For Frappe Using Restic
+</h1>
+<p style="margin-top:-40px;">
+<small>
+    2023-07-16 
+</small>
+</p>
+<p>Built-in <a href="https://frappeframework.com/docs/v14/user/en/bench/reference/backup">backup and restore</a>
+functionality is definitely one of Frappe's nicer features. Having used <code>bench restore</code> to move
+servers and, once, recover from a failed server I can vouch for its efficacy.</p>
+<p>A Frappe site is fully backed up if you have backups for the application code, DB, files and the <code>site_config.json</code>.
+All our application code is on Github and a couple of computers so we will focus on the others.</p>
+<p>The default <code>bench backup</code> creates snapshot <code>tar.gz</code> files for the DB, public files and private files. Based on the 
+selected routine, it will also take snapshots of the <code>site_config.json</code> file. You can even configure 
+Frappe to store the backups on AWS S3 - this works really well and will email you if the backup fails for some reason.</p>
+<blockquote>
+<p><code>site_config.json</code> is quite important to back up as it contains the DB password as well as the 
+encryption key needed to decode passwords stored in the DB.</p>
+</blockquote>
+<p>However, this approach also results in a lot of wasted disk space and cost on S3 (or wherever you are keeping your backups).
+Each set of <code>tar.gz</code> files is a standalone backup and hence contains all the data needed to restore your site.
+Do this once a day and soon your S3 bill has 2 digits on it. Do this 4 times a day and you will be paying more for S3
+than your servers. Sure, you could rotate the backups (manually, Frappe doesn't have built-in support) 
+but we can do better - and spend fewer CPU cycles.</p>
+<p>Now, with our servers seeing a lot more traffic and databases extending into the 10s of GB, I felt
+we needed a slightly more custom solution. I have used Tarsnap in the past and that was my preferred 
+solution but then came across this <a href="https://changelog.com/gotime/48">podcast interview</a> with the creator of <a href="https://restic.net/">Restic</a>.
+A quick search on the Frappe forum led me to <a href="https://discuss.frappe.io/t/how-to-backup-with-restic-to-s3-compatible-storage/87199">this post</a> 
+which covers much the same things as this blog post.</p>
+<p>The main difference between the forum post and my setup is that we don't use <code>bench backup</code> at all.
+Instead, we use <code>mysqldump</code> to create the DB snapshot (same as <code>bench backup</code>, without the <code>tar.gz</code>) and backup the site directory in its entirety - files and config.</p>
+<blockquote>
+<p>Specifically, the timestamped <code>tar.gz</code> files created by <code>bench backup</code> are <a href="https://restic.readthedocs.io/en/stable/040_backup.html#file-change-detection">considered to be new files</a> by Restic and this would defeat the purpose of using Restic.</p>
+</blockquote>
+<p>Our approach is simpler and has the advantage of being more suited to <code>restic</code> which can be smart about the changes in the files and do proper incremental backups.</p>
+<p><em>The Restic docs do a great job explaining how to get started - from initialising a <code>repo</code> to doing backups and restores. Read that to get a better understanding of Restic before using/adapting this script.</em></p>
+<h3 id="backup-script">Backup Script</h3>
+<h4 id="restic-sh"><code>restic.sh</code></h4>
+<pre data-lang="bash" style="background-color:#2b303b;color:#c0c5ce;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#65737e;">#!/bin/bash
+</span><span style="color:#96b5b4;">set </span><span style="color:#bf616a;">-e
+</span><span style="color:#65737e;"># Keep your exports in /etc/profile or similar
+</span><span style="color:#b48ead;">export </span><span style="color:#bf616a;">AWS_ACCESS_KEY_ID</span><span>=</span><span style="color:#a3be8c;">SOME_KEY
+</span><span style="color:#b48ead;">export </span><span style="color:#bf616a;">AWS_SECRET_ACCESS_KEY</span><span>=</span><span style="color:#a3be8c;">SOME_SECRET
+</span><span style="color:#b48ead;">export </span><span style="color:#bf616a;">AWS_DEFAULT_REGION</span><span>=</span><span style="color:#a3be8c;">ap-south-1
+</span><span style="color:#b48ead;">export </span><span style="color:#bf616a;">RESTIC_PASSWORD_FILE</span><span>=</span><span style="color:#a3be8c;">/path/to/restic.password
+</span><span style="color:#bf616a;">BUCKET</span><span>=</span><span style="color:#a3be8c;">SOME_BUCKET
+</span><span style="color:#bf616a;">SITES</span><span>=( site_1 site_2 site_3 )
+</span><span style="color:#bf616a;">DB_USER</span><span>=</span><span style="color:#a3be8c;">SOME_DB_USER
+</span><span style="color:#bf616a;">DB_PASSWORD</span><span>=</span><span style="color:#a3be8c;">SOME_DB_PASSWORD
+</span><span style="color:#b48ead;">for</span><span> FRAPPE_SITE </span><span style="color:#b48ead;">in </span><span>&quot;$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">SITES[@]</span><span style="color:#a3be8c;">}</span><span>&quot;
+</span><span style="color:#b48ead;">do
+</span><span>	</span><span style="color:#96b5b4;">echo </span><span>&quot;</span><span style="color:#a3be8c;">Backing Up </span><span>$</span><span style="color:#bf616a;">FRAPPE_SITE</span><span>&quot;
+</span><span>	</span><span style="color:#bf616a;">DIR_PATH</span><span>=</span><span style="color:#a3be8c;">frappe-bench/sites/</span><span>$</span><span style="color:#bf616a;">FRAPPE_SITE
+</span><span>	</span><span style="color:#bf616a;">DB_NAME</span><span>=`</span><span style="color:#bf616a;">cat </span><span>$</span><span style="color:#bf616a;">DIR_PATH</span><span>/site_config.json | </span><span style="color:#bf616a;">jq -r </span><span>&#39;</span><span style="color:#a3be8c;">.db_name</span><span>&#39;`
+</span><span>	</span><span style="color:#bf616a;">mysqldump --single-transaction --quick --lock-tables</span><span>=false \
+</span><span style="color:#bf616a;">        -u </span><span>$</span><span style="color:#bf616a;">DB_USER -p</span><span>$</span><span style="color:#bf616a;">DB_PASSWORD </span><span>$</span><span style="color:#bf616a;">DB_NAME </span><span>&gt; $</span><span style="color:#bf616a;">DIR_PATH</span><span>/private/backups/$</span><span style="color:#bf616a;">DB_NAME</span><span>.sql
+</span><span>	</span><span style="color:#bf616a;">RESTIC_URL</span><span>=&quot;</span><span style="color:#a3be8c;">s3:s3.amazonaws.com/</span><span>$</span><span style="color:#bf616a;">BUCKET</span><span style="color:#a3be8c;">/restic/</span><span>$</span><span style="color:#bf616a;">FRAPPE_SITE</span><span>&quot;
+</span><span>	</span><span style="color:#bf616a;">restic -r </span><span>$</span><span style="color:#bf616a;">RESTIC_URL</span><span> list snapshots || </span><span style="color:#bf616a;">restic -r </span><span>$</span><span style="color:#bf616a;">RESTIC_URL</span><span> init
+</span><span>	</span><span style="color:#bf616a;">restic -r </span><span>$</span><span style="color:#bf616a;">RESTIC_URL</span><span> backup $</span><span style="color:#bf616a;">PWD</span><span>/frappe-bench/sites/$</span><span style="color:#bf616a;">FRAPPE_SITE
+</span><span>	</span><span style="color:#bf616a;">touch</span><span> last_backup_$</span><span style="color:#bf616a;">FRAPPE_SITE</span><span>.timestamp
+</span><span style="color:#b48ead;">done
+</span></code></pre>
+<p>Here's a brief explainer:</p>
+<ul>
+<li>The <code>env</code> variables should go wherever you normally put your environment variables. DO NOT keep them in the script - that's an invitation for a breach at some later day.</li>
+<li>We are assuming there's a single DB user and password that can be used to access the DB for each
+site. If not, you can also read the user and password from <code>site_config.json</code></li>
+<li>You will need to install both <code>restic</code> and <a href="https://github.com/jqlang/jq"><code>jq</code></a> - e.g. <code>apt install restic jq</code></li>
+<li>The <code>mysqldump</code> command is adapted from that used by <code>bench backup</code>. Be sure to use <code>--quick</code> - this helps keep <a href="https://dev.mysql.com/doc/refman/5.7/en/mysqldump.html#option_mysqldump_quick">memory usage down</a> and can help prevent OOM crashes.</li>
+<li>We use the logical OR <code>||</code> to initialise the Restic repo if not already done. </li>
+<li>Once the backup is completed, we use a simple timestamp to track when the last backup was completed.</li>
+</ul>
+<p>I add this script to my Cron with <code>crontab -e</code> as an hourly task. This means I have more frequent backups and pay less than with the default <code>bench backup</code> approach. Admittedly, I can no longer use <code>bench restore</code> but on the other hand, all I have to do is <code>restic -r &lt;repo&gt; restore &lt;snapshot&gt; --target &lt;target-dir&gt;</code> and <code>mysql &lt;db-name&gt; &lt; backup.sql</code>.</p>
+
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true });
+</script>
+
+      </div>
+    <footer>
+        <p>
+          <small>
+            &copy; 2023 Tej Pochiraju. 
+            Built using <a href="https://www.lunarvim.org/">LunarVim</a> and 
+            <a href="https://www.getzola.org/">Zola</a>.
+          </small>
+        </p> 
+    </footer>
+    </section>
+  </body>
+
+  <style>
+html {
+  max-width: 70ch;
+  padding: 2em 1em;
+  margin: auto;
+  line-height: 1.75;
+  font-size: 1.25em;
+}
+
+h1,h2,h3,h4,h5,h6 {
+  margin: 1em 0 1em 0em;
+}
+
+p,ul,ol {
+  margin-bottom: 1em;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+
+nav ul {
+  list-style: none;  /* removes the default bullet points of ul */
+  padding: 0;        /* removes the default padding of ul */
+  display: flex;     /* makes the li items display in a row */
+  justify-content: flex-start; /* distributes the li items evenly with space around them */
+}
+
+nav ul li {
+  margin-right: 1em; /* Adds space to the right of each li element */
+}
+
+img {
+  max-width: 70ch;
+  height: auto;
+  max-height: 600px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add space between columns and rows */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th, td {
+  border-bottom: 10px; /* Adjust the color to match your page background */
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+}
+/* Highlight alternate rows */
+tr:nth-child(even) {
+  background-color: #e2e2e2;
+}
+blockquote{
+  border-left: 5px solid #e2e2e2;
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 1.0em;
+  }
+
+  nav ul li {
+    font-size: 0.9em;
+  }
+}
+  </style>
+</html>

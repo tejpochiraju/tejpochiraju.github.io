@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="The personal website of an experienced technologist 
+      and co-founder of IoTReady.co. Embracing frugal iterations over long-term plans.">
+    
+    <title>Github’s lessons for new product development </title>
+    
+    <link rel="shortcut icon" href="/favicon.png">
+    <script defer data-domain="tej.sh" src="https://plausible.tej.sh/js/script.js"></script>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/work">Work</a></li>
+        <li><a href="https://iotready.co" target="_blank">IoTReady</a></li>
+        <li><a href="mailto:e@tej.sh">&#9993;</a></li>
+        <li><a href="https://www.linkedin.com/in/tejpochiraju" target="_blank">&#128279; In</a></li>
+      </ul>
+    </nav>
+    <section>
+      <div>
+        
+<h1>
+  Github’s lessons for new product development
+</h1>
+<p style="margin-top:-40px;">
+<small>
+    2014-10-02 
+</small>
+</p>
+<p>I love Github’s philosophy, functionality and business model. And the more I look into it the more I realise it has the potential to revolutionise research.</p>
+<p>Research projects either succeed or disappear. Research that translates to profits makes headlines. The rest is similar to the lonely tree that fell in the forest.</p>
+<p>Every product development has multiple layers that need to be developed — technology, application and market. Of these, the fundamental technology is rarely the one that delivers actual business value. Profits derive from how we use the technology (i.e. the application layer) and how we sell the application (i.e. the market layer). A product can fail in any of these layers but the technology layer is probably easiest to fix. Especially since we have a ready-made reference model from the software world.</p>
+<p>The founders behind Github decided early on that they would open source (almost) everything. They opened up technology building blocks to leverage the community for traction and product improvement. This act of thought leadership benefits the community by giving it something useful and more widely applicable. In order to build profitability the founders kept the business layers proprietary — e.g. the actual Github app.</p>
+<blockquote>
+<p>Github’s lesson: Open source everything except that which represents core business value.</p>
+</blockquote>
+<p>Think about this for a while and reflect on any new product development you have worked upon. Do all layers need to be proprietary? Can we benefit from opening up specific building blocks early in the project? I think if we did open up:</p>
+<ul>
+<li>
+<p>Technology building blocks will develop faster and better with multiple experts contributing — we get to the application stage a lot quicker.</p>
+</li>
+<li>
+<p>With enough traction these technology blocks will keep improving.</p>
+</li>
+<li>
+<p>People can use these open blocks for other projects and products we probably wouldn’t have thought or bothered about.</p>
+</li>
+<li>
+<p>Projects that aren’t quite successful are given a lifeline because someone, somewhere might fix shortcomings. By employing appropriate share-alike licences we can benefit from these efforts too.</p>
+</li>
+</ul>
+
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true });
+</script>
+
+      </div>
+    <footer>
+        <p>
+          <small>
+            &copy; 2023 Tej Pochiraju. 
+            Built using <a href="https://www.lunarvim.org/">LunarVim</a> and 
+            <a href="https://www.getzola.org/">Zola</a>.
+          </small>
+        </p> 
+    </footer>
+    </section>
+  </body>
+
+  <style>
+html {
+  max-width: 70ch;
+  padding: 2em 1em;
+  margin: auto;
+  line-height: 1.75;
+  font-size: 1.25em;
+}
+
+h1,h2,h3,h4,h5,h6 {
+  margin: 1em 0 1em 0em;
+}
+
+p,ul,ol {
+  margin-bottom: 1em;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+
+nav ul {
+  list-style: none;  /* removes the default bullet points of ul */
+  padding: 0;        /* removes the default padding of ul */
+  display: flex;     /* makes the li items display in a row */
+  justify-content: flex-start; /* distributes the li items evenly with space around them */
+}
+
+nav ul li {
+  margin-right: 1em; /* Adds space to the right of each li element */
+}
+
+img {
+  max-width: 70ch;
+  height: auto;
+  max-height: 600px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add space between columns and rows */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th, td {
+  border-bottom: 10px; /* Adjust the color to match your page background */
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+}
+/* Highlight alternate rows */
+tr:nth-child(even) {
+  background-color: #e2e2e2;
+}
+blockquote{
+  border-left: 5px solid #e2e2e2;
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 1.0em;
+  }
+
+  nav ul li {
+    font-size: 0.9em;
+  }
+}
+  </style>
+</html>

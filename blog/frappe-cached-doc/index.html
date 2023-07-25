@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="The personal website of an experienced technologist 
+      and co-founder of IoTReady.co. Embracing frugal iterations over long-term plans.">
+    
+    <title>ORM Speed Up In Frappe </title>
+    
+    <link rel="shortcut icon" href="/favicon.png">
+    <script defer data-domain="tej.sh" src="https://plausible.tej.sh/js/script.js"></script>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/work">Work</a></li>
+        <li><a href="https://iotready.co" target="_blank">IoTReady</a></li>
+        <li><a href="mailto:e@tej.sh">&#9993;</a></li>
+        <li><a href="https://www.linkedin.com/in/tejpochiraju" target="_blank">&#128279; In</a></li>
+      </ul>
+    </nav>
+    <section>
+      <div>
+        
+<h1>
+  ORM Speed Up In Frappe
+</h1>
+<p style="margin-top:-40px;">
+<small>
+    2023-07-18 
+</small>
+</p>
+<p>ORMs can <a href="https://stackoverflow.com/questions/699792/is-orm-slow-does-it-matter">be slow</a>.
+However, they are also very useful and central to Frappe's entire metadata and document 
+centric model.</p>
+<p>Frappe's ORM can trigger validations and all kinds of side-effects via document hooks. Like it, or not, these hooks are how one writes Frappe code. So, the ORM is critical on the write-path, if (far) less efficient than raw SQL writes. We have previously explored this topic for <a href="/blog/frappe-deferred-bulk/">bulk writes</a>.</p>
+<p>Some of our apps have read heavy APIs where a number of documents are read during a single API transaction. Until recently we had no choice but to choose one of the following:</p>
+<ul>
+<li>Use <code>frappe.get_doc</code> and accept the performance penalty, </li>
+<li>Write raw SQL queries and combine multiple reads into a single DB transaction,</li>
+<li>Roll our own caching and carefully manage invalidations.</li>
+</ul>
+<h2 id="brave-new-world">Brave new world</h2>
+<p>However, I recently discovered <code>frappe.get_cached_doc</code> and it's essentially a free performance upgrade. The <a href="https://frappeframework.com/docs/v14/user/en/guides/caching#cached-documents">documentation</a> is pretty straightforward:</p>
+<ul>
+<li>the return value of <code>get_cached_doc</code> is equivalent to the return value of <code>get_doc</code></li>
+<li>the cache is updated any time the ORM is used to update the document (<code>doc.save</code> or <code>frappe.db.set_value</code>)
+<ul>
+<li>Raw DB updates and <code>doc.db_set</code> do not update the cache. This does mean our <code>bulk_insert</code> method does <em>not</em> update the cache. Thankfully, there's <code>frappe.clear_document_cache(doctype, name)</code></li>
+</ul>
+</li>
+</ul>
+<h2 id="performance-upgrades">Performance upgrades</h2>
+<p>What does this mean in terms of performance? A cool <strong>10000x+</strong> increase in read throughput. See the code below for my simplistic benchmark.</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span>
+</span><span style="color:#b48ead;">from </span><span>timeit </span><span style="color:#b48ead;">import </span><span>timeit
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">load_doc</span><span>():
+</span><span>    </span><span style="color:#b48ead;">return </span><span>frappe.</span><span style="color:#bf616a;">get_doc</span><span>(doctype, docname)
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">load_cached_doc</span><span>():
+</span><span>    </span><span style="color:#b48ead;">return </span><span>frappe.</span><span style="color:#bf616a;">get_cached_doc</span><span>(doctype, docname)
+</span><span>
+</span><span style="color:#96b5b4;">print</span><span>(</span><span style="color:#bf616a;">timeit</span><span>(load_doc, </span><span style="color:#bf616a;">number</span><span>=</span><span style="color:#d08770;">1000</span><span>))
+</span><span style="color:#65737e;"># 17.63
+</span><span>
+</span><span>
+</span><span style="color:#96b5b4;">print</span><span>(</span><span style="color:#bf616a;">timeit</span><span>(load_cached_doc, </span><span style="color:#bf616a;">number</span><span>=</span><span style="color:#d08770;">10000000</span><span>))
+</span><span style="color:#65737e;"># 13.00
+</span><span>
+</span></code></pre>
+<p>Sure, caching documents needs more RAM. But RAM is <a href="https://www.e2enetworks.com/pricing#High-Memory-Cloud">dirt cheap</a> these days, so go ahead and replace <code>frappe.get_doc</code> with <code>frappe.get_cached_doc</code> in your performance critical paths and enjoy an immediate boost to API responsiveness.</p>
+
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true });
+</script>
+
+      </div>
+    <footer>
+        <p>
+          <small>
+            &copy; 2023 Tej Pochiraju. 
+            Built using <a href="https://www.lunarvim.org/">LunarVim</a> and 
+            <a href="https://www.getzola.org/">Zola</a>.
+          </small>
+        </p> 
+    </footer>
+    </section>
+  </body>
+
+  <style>
+html {
+  max-width: 70ch;
+  padding: 2em 1em;
+  margin: auto;
+  line-height: 1.75;
+  font-size: 1.25em;
+}
+
+h1,h2,h3,h4,h5,h6 {
+  margin: 1em 0 1em 0em;
+}
+
+p,ul,ol {
+  margin-bottom: 1em;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+
+nav ul {
+  list-style: none;  /* removes the default bullet points of ul */
+  padding: 0;        /* removes the default padding of ul */
+  display: flex;     /* makes the li items display in a row */
+  justify-content: flex-start; /* distributes the li items evenly with space around them */
+}
+
+nav ul li {
+  margin-right: 1em; /* Adds space to the right of each li element */
+}
+
+img {
+  max-width: 70ch;
+  height: auto;
+  max-height: 600px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add space between columns and rows */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th, td {
+  border-bottom: 10px; /* Adjust the color to match your page background */
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+}
+/* Highlight alternate rows */
+tr:nth-child(even) {
+  background-color: #e2e2e2;
+}
+blockquote{
+  border-left: 5px solid #e2e2e2;
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 1.0em;
+  }
+
+  nav ul li {
+    font-size: 0.9em;
+  }
+}
+  </style>
+</html>

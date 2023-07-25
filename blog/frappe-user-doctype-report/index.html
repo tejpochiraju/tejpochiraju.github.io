@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="The personal website of an experienced technologist 
+      and co-founder of IoTReady.co. Embracing frugal iterations over long-term plans.">
+    
+    <title>Tracking User DocType Permissions In Frappe </title>
+    
+    <link rel="shortcut icon" href="/favicon.png">
+    <script defer data-domain="tej.sh" src="https://plausible.tej.sh/js/script.js"></script>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/work">Work</a></li>
+        <li><a href="https://iotready.co" target="_blank">IoTReady</a></li>
+        <li><a href="mailto:e@tej.sh">&#9993;</a></li>
+        <li><a href="https://www.linkedin.com/in/tejpochiraju" target="_blank">&#128279; In</a></li>
+      </ul>
+    </nav>
+    <section>
+      <div>
+        
+<h1>
+  Tracking User DocType Permissions In Frappe
+</h1>
+<p style="margin-top:-40px;">
+<small>
+    2023-07-22 
+</small>
+</p>
+<p>In a Frappe site with 100s of users and 10s of DocTypes, ensuring everyone has appropriate access levels can quickly get quite tricky. Especially if you have an app with a large number of roles. Frappe's built-in <code>Role Permission Manager</code> does not quite cut it as it does not show user to doctype mapping. This short post shows we manage this.</p>
+<p>We have a simple SQL query in Metabase that displays all the doctypes a user has access to. We review this about once a week to ensure privileges are not being granted to users who should not really have them.</p>
+<pre data-lang="sql" style="background-color:#2b303b;color:#c0c5ce;" class="language-sql "><code class="language-sql" data-lang="sql"><span style="color:#b48ead;">SELECT 
+</span><span>    </span><span style="color:#d08770;">U</span><span>.</span><span style="color:#d08770;">User</span><span>,
+</span><span>    </span><span style="color:#d08770;">U</span><span>.</span><span style="color:#d08770;">Roles</span><span>,
+</span><span>    GROUP_CONCAT(DISTINCT </span><span style="color:#b48ead;">CASE WHEN</span><span> DP.`</span><span style="color:#a3be8c;">read</span><span>` = </span><span style="color:#d08770;">1 </span><span style="color:#b48ead;">THEN </span><span style="color:#d08770;">DP</span><span>.</span><span style="color:#d08770;">parent 
+</span><span>        </span><span style="color:#b48ead;">ELSE </span><span style="color:#d08770;">NULL </span><span style="color:#b48ead;">END ORDER BY </span><span style="color:#d08770;">DP</span><span>.</span><span style="color:#d08770;">parent</span><span> SEPARATOR &#39;</span><span style="color:#a3be8c;">, </span><span>&#39;) 
+</span><span>        AS ReadPermissions,
+</span><span>    GROUP_CONCAT(DISTINCT </span><span style="color:#b48ead;">CASE WHEN</span><span> DP.`</span><span style="color:#a3be8c;">write</span><span>` = </span><span style="color:#d08770;">1 </span><span style="color:#b48ead;">THEN </span><span style="color:#d08770;">DP</span><span>.</span><span style="color:#d08770;">parent 
+</span><span>        </span><span style="color:#b48ead;">ELSE </span><span style="color:#d08770;">NULL </span><span style="color:#b48ead;">END ORDER BY </span><span style="color:#d08770;">DP</span><span>.</span><span style="color:#d08770;">parent</span><span> SEPARATOR &#39;</span><span style="color:#a3be8c;">, </span><span>&#39;) 
+</span><span>        AS WritePermissions
+</span><span style="color:#b48ead;">FROM</span><span> (
+</span><span>    </span><span style="color:#b48ead;">SELECT 
+</span><span>      `</span><span style="color:#a3be8c;">parent</span><span>` AS User,
+</span><span>      GROUP_CONCAT(`</span><span style="color:#a3be8c;">role</span><span>` </span><span style="color:#b48ead;">ORDER BY </span><span>`</span><span style="color:#a3be8c;">role</span><span>` SEPARATOR &#39;</span><span style="color:#a3be8c;">, </span><span>&#39;) AS Roles
+</span><span>    </span><span style="color:#b48ead;">FROM 
+</span><span>      `</span><span style="color:#a3be8c;">tabHas Role</span><span>`
+</span><span>    </span><span style="color:#b48ead;">WHERE</span><span> parenttype=&#39;</span><span style="color:#a3be8c;">User</span><span>&#39;
+</span><span>    </span><span style="color:#b48ead;">GROUP BY 
+</span><span>      `</span><span style="color:#a3be8c;">parent</span><span>`
+</span><span>) AS U
+</span><span style="color:#b48ead;">JOIN </span><span>`</span><span style="color:#a3be8c;">tabDocPerm</span><span>` AS DP ON FIND_IN_SET(</span><span style="color:#d08770;">DP</span><span>.</span><span style="color:#d08770;">role</span><span>, </span><span style="color:#d08770;">U</span><span>.</span><span style="color:#d08770;">Roles</span><span>)
+</span><span style="color:#b48ead;">GROUP BY 
+</span><span>  </span><span style="color:#d08770;">U</span><span>.</span><span style="color:#d08770;">User
+</span><span style="color:#b48ead;">ORDER BY 
+</span><span>  </span><span style="color:#d08770;">U</span><span>.</span><span style="color:#d08770;">User</span><span>;
+</span></code></pre>
+<p>You can easily adapt this to look for <code>delete</code> privileges too. We then use email subscriptions in Metabase to send this off to customer admins to take action as needed. Of course, you can also use Frappe SQL reports to do the same.</p>
+
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true });
+</script>
+
+      </div>
+    <footer>
+        <p>
+          <small>
+            &copy; 2023 Tej Pochiraju. 
+            Built using <a href="https://www.lunarvim.org/">LunarVim</a> and 
+            <a href="https://www.getzola.org/">Zola</a>.
+          </small>
+        </p> 
+    </footer>
+    </section>
+  </body>
+
+  <style>
+html {
+  max-width: 70ch;
+  padding: 2em 1em;
+  margin: auto;
+  line-height: 1.75;
+  font-size: 1.25em;
+}
+
+h1,h2,h3,h4,h5,h6 {
+  margin: 1em 0 1em 0em;
+}
+
+p,ul,ol {
+  margin-bottom: 1em;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+
+nav ul {
+  list-style: none;  /* removes the default bullet points of ul */
+  padding: 0;        /* removes the default padding of ul */
+  display: flex;     /* makes the li items display in a row */
+  justify-content: flex-start; /* distributes the li items evenly with space around them */
+}
+
+nav ul li {
+  margin-right: 1em; /* Adds space to the right of each li element */
+}
+
+img {
+  max-width: 70ch;
+  height: auto;
+  max-height: 600px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add space between columns and rows */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th, td {
+  border-bottom: 10px; /* Adjust the color to match your page background */
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+}
+/* Highlight alternate rows */
+tr:nth-child(even) {
+  background-color: #e2e2e2;
+}
+blockquote{
+  border-left: 5px solid #e2e2e2;
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 1.0em;
+  }
+
+  nav ul li {
+    font-size: 0.9em;
+  }
+}
+  </style>
+</html>

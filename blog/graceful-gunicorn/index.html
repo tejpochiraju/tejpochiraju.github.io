@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="The personal website of an experienced technologist 
+      and co-founder of IoTReady.co. Embracing frugal iterations over long-term plans.">
+    
+    <title>Graceful Upgrades To Gunicorn Apps </title>
+    
+    <link rel="shortcut icon" href="/favicon.png">
+    <script defer data-domain="tej.sh" src="https://plausible.tej.sh/js/script.js"></script>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/work">Work</a></li>
+        <li><a href="https://iotready.co" target="_blank">IoTReady</a></li>
+        <li><a href="mailto:e@tej.sh">&#9993;</a></li>
+        <li><a href="https://www.linkedin.com/in/tejpochiraju" target="_blank">&#128279; In</a></li>
+      </ul>
+    </nav>
+    <section>
+      <div>
+        
+<h1>
+  Graceful Upgrades To Gunicorn Apps
+</h1>
+<p style="margin-top:-40px;">
+<small>
+    2023-07-13 
+</small>
+</p>
+<p><a href="https://frappeframework.com">Frappe</a> app updates are managed using the <a href="https://github.com/frappe/bench">bench CLI</a> and 
+work really well for the most part.</p>
+<p>However, a <code>bench restart</code> is disruptive and necessitates downtime. Quite a few of our apps can't afford downtime outside of specific,
+short (&lt;30 minute) windows at odd off-peak hours. 
+For hotfixes in such cases, I have now started using a <a href="https://docs.gunicorn.org/en/stable/signals.html#binary-upgrade">built-in feature of Gunicorn</a> 
+to do zero downtime updates when making Python code changes.</p>
+<p>The documentation link above explains the flow quite well. Here's my workflow:</p>
+<ul>
+<li><code>git pull</code> inside the app directory, e.g. <code>frappe-bench/apps/iotready_otp</code></li>
+<li>Look up the PID using <code>htop</code> after enabling <code>tree</code> view (<code>F5</code>) - the top PID from which the branches (workers) begin is the one we are after</li>
+<li>Send the following signals in sequence (you can, of course, send these from within the <code>htop</code> UI with <code>F9</code>):
+<ul>
+<li><code>kill -USR2 &lt;pid&gt;</code></li>
+<li><code>kill -WINCH &lt;pid&gt;</code></li>
+<li><code>kill -TERM &lt;pid&gt;</code></li>
+</ul>
+</li>
+</ul>
+<p>And that's it - workers are launched running the new Python code and existing workers will shutdown and exit once running requests are closed.
+Eventually the master Gunicorn process exits too.</p>
+<p>The documentation describes steps to revert back too (before sending the <code>TERM</code> signal). This is what your <code>htop</code> will look like during this process.</p>
+<h3 id="pre-usr2">Pre USR2</h3>
+<p>I have 10 workers branching from the master PID (<code>12928</code>).
+<img src="/images/gunicorn_pre_usr2.png" alt="Pre USR2" /></p>
+<h3 id="post-usr2">Post USR2</h3>
+<p>A second master PID (<code>12996</code>) has been launched from the previous PID. This new Gunicorn process has its own workers.
+<img src="/images/gunicorn_post_usr2.png" alt="Post USR2" /></p>
+<h3 id="post-winch">Post WINCH</h3>
+<p>Looks the same as Post USR2 except the old workers have stopped taking requests.</p>
+<h3 id="post-term">Post TERM</h3>
+<p>The old PID is gone and all we are left with is the new PID.
+<img src="/images/gunicorn_post_term.png" alt="Post TERM" /></p>
+<h2 id="making-this-a-tad-simpler">Making this a tad simpler</h2>
+<p>The reason we need all these steps is because Frappe uses a <code>--preload</code> flag by default when launching Gunicorn. This is configured 
+inside the <code>frappe-bench/config/supervisord.conf</code> file. </p>
+<p><img src="/images/gunicorn_supervisor_conf.png" alt="Gunicorn Supervisor Conf" /></p>
+<p>Without the <code>--preload</code> flag, Gunicorn will do all of the above with just the <code>HUP</code> signal. However, sending a <code>HUP</code> also means that you 
+will lose the ability to revert.</p>
+<pre data-lang="bash" style="background-color:#2b303b;color:#c0c5ce;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#65737e;"># Edit the supervisor.conf file to remove --preload
+</span><span style="color:#65737e;"># Reload the supervisor configuration
+</span><span style="color:#bf616a;">sudo</span><span> supervisorctl reload
+</span><span style="color:#65737e;"># Wait for processes to restart
+</span><span style="color:#bf616a;">sudo</span><span> supervisorctl signal HUP frappe-bench-web:frappe-bench-frappe-web
+</span></code></pre>
+<p>I have chosen to keep <code>--preload</code> and use the manual process as it gives me a bit more control and I can see the changes happening. </p>
+<h2 id="frappe-best-practices">Frappe best practices</h2>
+<p>There are a few other Frappe working practices I follow to help with easier/graceful updates:</p>
+<ul>
+<li>Use versioning for APIs, e.g. new features or breaking changes go into <code>api_v2.py</code> so that the caller calls <code>/api/method/app.api_v2.function</code></li>
+<li><a href="https://www.prisma.io/dataguide/types/relational/expand-and-contract-pattern">Expand and then contract</a> 
+for schema, e.g. when replacing or renaming fields, I add the new field, deploy it and once all clients (e.g. Android apps) 
+are using the API and schema, I may remove the old fields. </li>
+<li>Use field/version based conditionals in document hooks. </li>
+</ul>
+
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true });
+</script>
+
+      </div>
+    <footer>
+        <p>
+          <small>
+            &copy; 2023 Tej Pochiraju. 
+            Built using <a href="https://www.lunarvim.org/">LunarVim</a> and 
+            <a href="https://www.getzola.org/">Zola</a>.
+          </small>
+        </p> 
+    </footer>
+    </section>
+  </body>
+
+  <style>
+html {
+  max-width: 70ch;
+  padding: 2em 1em;
+  margin: auto;
+  line-height: 1.75;
+  font-size: 1.25em;
+}
+
+h1,h2,h3,h4,h5,h6 {
+  margin: 1em 0 1em 0em;
+}
+
+p,ul,ol {
+  margin-bottom: 1em;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+
+nav ul {
+  list-style: none;  /* removes the default bullet points of ul */
+  padding: 0;        /* removes the default padding of ul */
+  display: flex;     /* makes the li items display in a row */
+  justify-content: flex-start; /* distributes the li items evenly with space around them */
+}
+
+nav ul li {
+  margin-right: 1em; /* Adds space to the right of each li element */
+}
+
+img {
+  max-width: 70ch;
+  height: auto;
+  max-height: 600px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add space between columns and rows */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th, td {
+  border-bottom: 10px; /* Adjust the color to match your page background */
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+}
+/* Highlight alternate rows */
+tr:nth-child(even) {
+  background-color: #e2e2e2;
+}
+blockquote{
+  border-left: 5px solid #e2e2e2;
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 1.0em;
+  }
+
+  nav ul li {
+    font-size: 0.9em;
+  }
+}
+  </style>
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="The personal website of an experienced technologist 
+      and co-founder of IoTReady.co. Embracing frugal iterations over long-term plans.">
+    
+    <title>Realtime Webviews With Frappe </title>
+    
+    <link rel="shortcut icon" href="/favicon.png">
+    <script defer data-domain="tej.sh" src="https://plausible.tej.sh/js/script.js"></script>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/work">Work</a></li>
+        <li><a href="https://iotready.co" target="_blank">IoTReady</a></li>
+        <li><a href="mailto:e@tej.sh">&#9993;</a></li>
+        <li><a href="https://www.linkedin.com/in/tejpochiraju" target="_blank">&#128279; In</a></li>
+      </ul>
+    </nav>
+    <section>
+      <div>
+        
+<h1>
+  Realtime Webviews With Frappe
+</h1>
+<p style="margin-top:-40px;">
+<small>
+    2023-07-15 
+</small>
+</p>
+<p>From <a href="/blog/frappe-deferred-bulk/">undocumented &amp; underused</a> to something much more 
+prevalent in the Frappe codebase.</p>
+<p>It takes less than 10 lines of code to add reliable, realtime capabilities to any Frappe application.
+Capabilities that let you do something like this:</p>
+<p><img src="/images/realtime_count.gif" alt="Realtime count" /> </p>
+<h2 id="code">Code</h2>
+<h3 id="client">Client</h3>
+<p>Frappe ships with VueJS 2.0 as part of its web bundle, so we are going to use that to keep
+the code declarative. And because, Vue is pre-bundled, we can add it to any page - even one 
+we create using Desk (/app/web-page).</p>
+<pre data-lang="javascript" style="background-color:#2b303b;color:#c0c5ce;" class="language-javascript "><code class="language-javascript" data-lang="javascript"><span>&lt;</span><span style="color:#bf616a;">div id</span><span>=&quot;</span><span style="color:#a3be8c;">app</span><span>&quot; </span><span style="color:#bf616a;">class</span><span>=&quot;</span><span style="color:#a3be8c;">container m-4</span><span>&quot;&gt;
+</span><span>    &lt;p&gt;Count: {{ </span><span style="color:#bf616a;">count </span><span>}}&lt;/</span><span style="color:#bf616a;">p</span><span>&gt;
+</span><span>&lt;/</span><span style="color:#bf616a;">div</span><span>&gt;
+</span><span>
+</span><span>&lt;script&gt;
+</span><span>    </span><span style="color:#bf616a;">frappe</span><span>.</span><span style="color:#8fa1b3;">ready</span><span>(() </span><span style="color:#b48ead;">=&gt; </span><span>{
+</span><span>        new Vue({
+</span><span>            el: &quot;</span><span style="color:#a3be8c;">#app</span><span>&quot;,
+</span><span>            data: {
+</span><span>                count: </span><span style="color:#d08770;">0
+</span><span>            },
+</span><span>            </span><span style="color:#8fa1b3;">mounted</span><span>() {
+</span><span>                </span><span style="color:#96b5b4;">setTimeout</span><span>(() </span><span style="color:#b48ead;">=&gt; </span><span>{
+</span><span>                    </span><span style="color:#bf616a;">frappe</span><span>.</span><span style="color:#bf616a;">realtime</span><span>.</span><span style="color:#8fa1b3;">on</span><span>(&quot;</span><span style="color:#a3be8c;">count</span><span>&quot;, (</span><span style="color:#bf616a;">data</span><span>) </span><span style="color:#b48ead;">=&gt; </span><span>{
+</span><span>                        </span><span style="color:#bf616a;">this</span><span>.</span><span style="color:#bf616a;">count </span><span>= </span><span style="color:#bf616a;">data</span><span>.</span><span style="color:#bf616a;">count</span><span>;
+</span><span>                    })
+</span><span>                }, </span><span style="color:#d08770;">3000</span><span>)
+</span><span>            }
+</span><span>        })
+</span><span>    });
+</span><span>&lt;/</span><span style="color:#bf616a;">script</span><span>&gt;
+</span></code></pre>
+<h4 id="notes">Notes</h4>
+<ul>
+<li>Vue is not needed for any of this. You can do this with vanilla JS as long as you have 
+Frappe's JS bundle available (included in the default <code>web.html</code> template).</li>
+<li>I had issues establishing the realtime connection without waiting for a few seconds, 
+hence the <code>setTimeout</code>.</li>
+</ul>
+<h3 id="server">Server</h3>
+<p>Frappe bundles <code>socket.io</code> on the server side to handle realtime communications over websockets.
+As a developer, you interact with the <a href="https://frappeframework.com/docs/v14/user/en/api/realtime">simple Python API</a>.</p>
+<p>In our example above, all we did to send updates was:</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">for </span><span>i </span><span style="color:#b48ead;">in </span><span style="color:#96b5b4;">range</span><span>(</span><span style="color:#d08770;">100</span><span>):
+</span><span>    frappe.</span><span style="color:#bf616a;">publish_realtime</span><span>(</span><span style="color:#bf616a;">event</span><span>=&quot;</span><span style="color:#a3be8c;">count</span><span>&quot;, </span><span style="color:#bf616a;">user</span><span>=&quot;</span><span style="color:#a3be8c;">Administrator</span><span>&quot;, </span><span style="color:#bf616a;">message</span><span>={&quot;</span><span style="color:#a3be8c;">count</span><span>&quot;: i})
+</span><span>    </span><span style="color:#bf616a;">sleep</span><span>(</span><span style="color:#d08770;">1</span><span>)
+</span></code></pre>
+<h2 id="how-does-it-work">How does it work?</h2>
+<p>The Python API is fairly simple and contained entirely in <a href="https://github.com/frappe/frappe/blob/develop/frappe/realtime.py"><code>realtime.py</code></a>.
+This file is worth a read. The Python side communicates with the Socket.IO server using its <a href="https://socket.io/docs/v4/redis-adapter/">Redis Adapter</a>.</p>
+<p>In order to route the messages, Frappe uses &quot;rooms&quot; which are specific to tasks/documents or users.
+There's even a site wide broadcast room. At the Redis level, the <code>room</code> is just a key in the JSON
+structure that is sent to <code>events</code> PubSub channel (see <code>emit_via_redis</code> inside <code>realtime.py</code>).</p>
+<p>Once an event has been published to Redis, the Socket.IO adapter picks it up and broadcasts it 
+to subscribed clients. Socket.IO uses Websockets for client communication with a fallback to HTTP 
+longpolling. Socket.IO's <a href="https://socket.io/docs/v4/how-it-works/">documentation</a> is pretty 
+fantastic at explaining the internals.</p>
+<p><img src="/images/socketio_redis.png" alt="Socket.IO Redis" /></p>
+<p>Finally, to make it all work, Frappe's web bundle includes a <a href="https://github.com/frappe/frappe/blob/version-14/socketio.js">Socket.IO client</a>
+that handles authentication, authorization, reconnects, subscriptions and publishing. 
+Yes, clients can send messages to the server too. That's for a later post.</p>
+<blockquote>
+<p>Btw, Frappe's realtime code is getting a bit of a rewrite in the <code>develop</code> branch <a href="https://github.com/frappe/frappe/tree/develop/realtime">as we speak</a>.</p>
+</blockquote>
+<h2 id="what-can-you-use-it-for">What can you use it for?</h2>
+<p>Frappe uses it for presence (showing who else is viewing a document), updating list views and 
+showing progress when uploading files or importing data.</p>
+<p><a href="https://iotready.co">We</a> use it for sending asynchronous realtime updates to our webviews, even those embedded 
+in our mobile apps. We have long planned to migrate our workflow apps over to Phoenix but that's 
+a lot of work and these realtime capabilisties significantly reduce the value of doing that.</p>
+<p>That said, Phoenix LiveView is an absolute joy to work with and gives you much simpler ways
+to architect your application and reason about the realtime pieces.</p>
+
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true });
+</script>
+
+      </div>
+    <footer>
+        <p>
+          <small>
+            &copy; 2023 Tej Pochiraju. 
+            Built using <a href="https://www.lunarvim.org/">LunarVim</a> and 
+            <a href="https://www.getzola.org/">Zola</a>.
+          </small>
+        </p> 
+    </footer>
+    </section>
+  </body>
+
+  <style>
+html {
+  max-width: 70ch;
+  padding: 2em 1em;
+  margin: auto;
+  line-height: 1.75;
+  font-size: 1.25em;
+}
+
+h1,h2,h3,h4,h5,h6 {
+  margin: 1em 0 1em 0em;
+}
+
+p,ul,ol {
+  margin-bottom: 1em;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+
+nav ul {
+  list-style: none;  /* removes the default bullet points of ul */
+  padding: 0;        /* removes the default padding of ul */
+  display: flex;     /* makes the li items display in a row */
+  justify-content: flex-start; /* distributes the li items evenly with space around them */
+}
+
+nav ul li {
+  margin-right: 1em; /* Adds space to the right of each li element */
+}
+
+img {
+  max-width: 70ch;
+  height: auto;
+  max-height: 600px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add space between columns and rows */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th, td {
+  border-bottom: 10px; /* Adjust the color to match your page background */
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+}
+/* Highlight alternate rows */
+tr:nth-child(even) {
+  background-color: #e2e2e2;
+}
+blockquote{
+  border-left: 5px solid #e2e2e2;
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 1.0em;
+  }
+
+  nav ul li {
+    font-size: 0.9em;
+  }
+}
+  </style>
+</html>

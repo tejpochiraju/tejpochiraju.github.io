@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="The personal website of an experienced technologist 
+      and co-founder of IoTReady.co. Embracing frugal iterations over long-term plans.">
+    
+    <title>After Install Cleanup For Frappe Apps </title>
+    
+    <link rel="shortcut icon" href="/favicon.png">
+    <script defer data-domain="tej.sh" src="https://plausible.tej.sh/js/script.js"></script>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/work">Work</a></li>
+        <li><a href="https://iotready.co" target="_blank">IoTReady</a></li>
+        <li><a href="mailto:e@tej.sh">&#9993;</a></li>
+        <li><a href="https://www.linkedin.com/in/tejpochiraju" target="_blank">&#128279; In</a></li>
+      </ul>
+    </nav>
+    <section>
+      <div>
+        
+<h1>
+  After Install Cleanup For Frappe Apps
+</h1>
+<p style="margin-top:-40px;">
+<small>
+    2023-07-23 
+</small>
+</p>
+<p>Frappe ships with a number of workspaces and roles out of the box. These workspaces have short cuts for a number of core system functionality including managing users and integrations. However, we almost never use these shortcuts - instead preferring the search bar. </p>
+<p>The roles are more problematic as they include a number of roles that have no business being in a core web framework, e.g. &quot;Purchase User&quot;. These are clearly an ERPNext legacy. They can lead to confusion when creating your own roles later. As a rule, we don't use any of these roles when building our apps to avoid leaking privileges if we install any other Frappe app or install our app alongside ERPNext.</p>
+<p>To simplify matters, we use a <a href="https://frappeframework.com/docs/v14/user/en/python-api/hooks#install-hooks">post-install hook</a> in our apps to clean up these workspaces and roles. Here's how. </p>
+<h3 id="hooks-py"><code>hooks.py</code></h3>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span>after_install = &quot;</span><span style="color:#a3be8c;">iotready_multitenancy.install.after_install</span><span>&quot;
+</span></code></pre>
+<h3 id="install-py"><code>install.py</code></h3>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">import </span><span>frappe
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">core_workspaces</span><span>():
+</span><span>    </span><span style="color:#65737e;">&quot;&quot;&quot;
+</span><span style="color:#65737e;">    Returns a list of core workspaces.
+</span><span style="color:#65737e;">    List accurate as of v14 - commit hash: aba05da
+</span><span style="color:#65737e;">    &quot;&quot;&quot;
+</span><span>    </span><span style="color:#b48ead;">return </span><span>(
+</span><span>        &quot;</span><span style="color:#a3be8c;">Tools</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Users</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Website</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Integrations</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Customization</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Settings</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Build</span><span>&quot;,
+</span><span>    )
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">hide_core_workspaces</span><span>():
+</span><span>    </span><span style="color:#65737e;">&quot;&quot;&quot;
+</span><span style="color:#65737e;">    Hide core workspaces from the workspace list.
+</span><span style="color:#65737e;">    &quot;&quot;&quot;
+</span><span>    sql = &quot;&quot;&quot;
+</span><span style="color:#a3be8c;">    </span><span style="color:#b48ead;">UPDATE </span><span>`</span><span style="color:#a3be8c;">tabWorkspace</span><span>` </span><span style="color:#b48ead;">SET</span><span style="color:#a3be8c;"> is_hidden </span><span>= </span><span style="color:#d08770;">1 </span><span style="color:#b48ead;">WHERE</span><span style="color:#a3be8c;"> name </span><span>IN</span><span style="color:#a3be8c;"> (</span><span style="color:#d08770;">{workspaces}</span><span style="color:#a3be8c;">);
+</span><span style="color:#a3be8c;">    </span><span>&quot;&quot;&quot;
+</span><span>    frappe.db.</span><span style="color:#bf616a;">sql</span><span>(
+</span><span>        sql.</span><span style="color:#bf616a;">format</span><span>(</span><span style="color:#bf616a;">workspaces</span><span>=&quot;</span><span style="color:#a3be8c;">, </span><span>&quot;.</span><span style="color:#bf616a;">join</span><span>([&quot;</span><span style="color:#a3be8c;">&#39;</span><span style="color:#d08770;">{}</span><span style="color:#a3be8c;">&#39;</span><span>&quot;.</span><span style="color:#bf616a;">format</span><span>(d) </span><span style="color:#b48ead;">for </span><span>d </span><span style="color:#b48ead;">in </span><span style="color:#bf616a;">core_workspaces</span><span>()]))
+</span><span>    )
+</span><span>    frappe.db.</span><span style="color:#bf616a;">commit</span><span>()
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">core_roles</span><span>():
+</span><span>    </span><span style="color:#65737e;">&quot;&quot;&quot;
+</span><span style="color:#65737e;">    Returns a list of core roles.
+</span><span style="color:#65737e;">    List accurate as of v14 - commit hash: aba05da
+</span><span style="color:#65737e;">    &quot;&quot;&quot;
+</span><span>    </span><span style="color:#b48ead;">return </span><span>[
+</span><span>        &quot;</span><span style="color:#a3be8c;">Accounts Manager</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Accounts User</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Administrator</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">All</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Blogger</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Dashboard Manager</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Guest</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Inbox User</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Knowledge Base Contributor</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Knowledge Base Editor</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Maintenance Manager</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Maintenance User</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Newsletter Manager</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Prepared Report User</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Purchase Manager</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Purchase Master Manager</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Purchase User</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Report Manager</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Sales Manager</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Sales Master Manager</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Sales User</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Script Manager</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">System Manager</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Translator</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Website Manager</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">Workspace Manager</span><span>&quot;,
+</span><span>    ]
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">protected_roles</span><span>():
+</span><span>    </span><span style="color:#65737e;">&quot;&quot;&quot;
+</span><span style="color:#65737e;">    These roles should not be given to customer users.
+</span><span style="color:#65737e;">    &quot;&quot;&quot;
+</span><span>    roles = </span><span style="color:#bf616a;">core_roles</span><span>()
+</span><span>    roles.</span><span style="color:#bf616a;">remove</span><span>(&quot;</span><span style="color:#a3be8c;">All</span><span>&quot;)
+</span><span>    roles.</span><span style="color:#bf616a;">remove</span><span>(&quot;</span><span style="color:#a3be8c;">Guest</span><span>&quot;)
+</span><span>    </span><span style="color:#b48ead;">return </span><span>roles
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">disable_unused_roles</span><span>():
+</span><span>    roles = </span><span style="color:#bf616a;">protected_roles</span><span>()
+</span><span>    roles.</span><span style="color:#bf616a;">remove</span><span>(&quot;</span><span style="color:#a3be8c;">Administrator</span><span>&quot;)
+</span><span>    roles.</span><span style="color:#bf616a;">remove</span><span>(&quot;</span><span style="color:#a3be8c;">System Manager</span><span>&quot;)
+</span><span>    roles.</span><span style="color:#bf616a;">remove</span><span>(&quot;</span><span style="color:#a3be8c;">Workspace Manager</span><span>&quot;)
+</span><span>    roles.</span><span style="color:#bf616a;">remove</span><span>(&quot;</span><span style="color:#a3be8c;">Script Manager</span><span>&quot;)
+</span><span>    sql = &quot;&quot;&quot;
+</span><span style="color:#a3be8c;">    </span><span style="color:#b48ead;">UPDATE </span><span>`</span><span style="color:#a3be8c;">tabRole</span><span>` </span><span style="color:#b48ead;">SET</span><span style="color:#a3be8c;"> disabled </span><span>= </span><span style="color:#d08770;">1 </span><span style="color:#b48ead;">WHERE</span><span style="color:#a3be8c;"> name </span><span>IN</span><span style="color:#a3be8c;"> (</span><span style="color:#d08770;">{roles}</span><span style="color:#a3be8c;">);
+</span><span style="color:#a3be8c;">    </span><span>&quot;&quot;&quot;
+</span><span>    frappe.db.</span><span style="color:#bf616a;">sql</span><span>(sql.</span><span style="color:#bf616a;">format</span><span>(</span><span style="color:#bf616a;">roles</span><span>=&quot;</span><span style="color:#a3be8c;">, </span><span>&quot;.</span><span style="color:#bf616a;">join</span><span>([&quot;</span><span style="color:#a3be8c;">&#39;</span><span style="color:#d08770;">{}</span><span style="color:#a3be8c;">&#39;</span><span>&quot;.</span><span style="color:#bf616a;">format</span><span>(d) </span><span style="color:#b48ead;">for </span><span>d </span><span style="color:#b48ead;">in </span><span>roles])))
+</span><span>    frappe.db.</span><span style="color:#bf616a;">commit</span><span>()
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">allow_reading_roles</span><span>():
+</span><span>    </span><span style="color:#65737e;">&quot;&quot;&quot;
+</span><span style="color:#65737e;">    Allows Organisation Admin to read roles.
+</span><span style="color:#65737e;">    &quot;&quot;&quot;
+</span><span>    doc = frappe.</span><span style="color:#bf616a;">new_doc</span><span>(&quot;</span><span style="color:#a3be8c;">Custom DocPerm</span><span>&quot;)
+</span><span>    doc.parent = &quot;</span><span style="color:#a3be8c;">Role</span><span>&quot;
+</span><span>    doc.role = &quot;</span><span style="color:#a3be8c;">Organisation Admin</span><span>&quot;
+</span><span>    doc.read = </span><span style="color:#d08770;">1
+</span><span>    doc.</span><span style="color:#bf616a;">save</span><span>()
+</span><span>    frappe.db.</span><span style="color:#bf616a;">commit</span><span>()
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">after_install</span><span>():
+</span><span>    </span><span style="color:#bf616a;">hide_core_workspaces</span><span>()
+</span><span>    </span><span style="color:#bf616a;">disable_unused_roles</span><span>()
+</span><span>    </span><span style="color:#bf616a;">allow_reading_roles</span><span>()
+</span><span>
+</span></code></pre>
+<p>With these few lines of code, we ensure that our workspaces and roles start clean. In a future post, I will share the tasks we use to keep them clean.</p>
+
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true });
+</script>
+
+      </div>
+    <footer>
+        <p>
+          <small>
+            &copy; 2023 Tej Pochiraju. 
+            Built using <a href="https://www.lunarvim.org/">LunarVim</a> and 
+            <a href="https://www.getzola.org/">Zola</a>.
+          </small>
+        </p> 
+    </footer>
+    </section>
+  </body>
+
+  <style>
+html {
+  max-width: 70ch;
+  padding: 2em 1em;
+  margin: auto;
+  line-height: 1.75;
+  font-size: 1.25em;
+}
+
+h1,h2,h3,h4,h5,h6 {
+  margin: 1em 0 1em 0em;
+}
+
+p,ul,ol {
+  margin-bottom: 1em;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+
+nav ul {
+  list-style: none;  /* removes the default bullet points of ul */
+  padding: 0;        /* removes the default padding of ul */
+  display: flex;     /* makes the li items display in a row */
+  justify-content: flex-start; /* distributes the li items evenly with space around them */
+}
+
+nav ul li {
+  margin-right: 1em; /* Adds space to the right of each li element */
+}
+
+img {
+  max-width: 70ch;
+  height: auto;
+  max-height: 600px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add space between columns and rows */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th, td {
+  border-bottom: 10px; /* Adjust the color to match your page background */
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+}
+/* Highlight alternate rows */
+tr:nth-child(even) {
+  background-color: #e2e2e2;
+}
+blockquote{
+  border-left: 5px solid #e2e2e2;
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 1.0em;
+  }
+
+  nav ul li {
+    font-size: 0.9em;
+  }
+}
+  </style>
+</html>

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="The personal website of an experienced technologist 
+      and co-founder of IoTReady.co. Embracing frugal iterations over long-term plans.">
+    
+    <title>Deferred Bulk Inserts In Frappe </title>
+    
+    <link rel="shortcut icon" href="/favicon.png">
+    <script defer data-domain="tej.sh" src="https://plausible.tej.sh/js/script.js"></script>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/work">Work</a></li>
+        <li><a href="https://iotready.co" target="_blank">IoTReady</a></li>
+        <li><a href="mailto:e@tej.sh">&#9993;</a></li>
+        <li><a href="https://www.linkedin.com/in/tejpochiraju" target="_blank">&#128279; In</a></li>
+      </ul>
+    </nav>
+    <section>
+      <div>
+        
+<h1>
+  Deferred Bulk Inserts In Frappe
+</h1>
+<p style="margin-top:-40px;">
+<small>
+    2023-07-14 
+</small>
+</p>
+<p>One of our upcoming SaaS products handles delivery payout calculations for ecommerce companies.
+Here, we accept bulk imports of trip and order data for the previous day and then calculate payouts
+using fairly complex, dark-store specific rate cards. These imports are often multiple files 
+of 100K+ records. Since these files are logically grouped together, we don't 
+use Frappe's Data Import UI. And since the files are uploaded and updated by end users, we don't
+use <code>bench import-csv</code> either. </p>
+<blockquote>
+<p>Frappe's Data Import is implemented as a wrapper for <em>row by row</em> insert/update.</p>
+</blockquote>
+<p>When dealing with 100s of thousands of rows each day, row by row updates and inserts are not
+an option - these just take too long (think hours). So, imagine my surprise when ChatGPT suggested
+I try out <code>frappe.db.bulk_insert</code>. At first, I assumed GPT was up to its hallucinatory tricks again
+but I decided to see if such a function existed and <a href="https://github.com/frappe/frappe/blob/develop/frappe/database/database.py">what do you know</a>!</p>
+<h2 id="of-undocumented-needles-in-haystacks">Of Undocumented Needles In Haystacks</h2>
+<p>Frappe has a <a href="https://frappeframework.com/docs/v14/user/en/api/document">built-in ORM</a> 
+that serves us well for most of the common use cases. There are also a few extras that 
+are not as commonly used in the Frappe or ERPNext code bases and perhaps not as familiar 
+to developers:</p>
+<ul>
+<li><a href="https://frappeframework.com/docs/v14/user/en/api/query-builder">Query builder</a>
+built on top of Pypika - useful for replacing SQL queries with a more Pythonic API</li>
+<li><a href="https://github.com/frappe/frappe/blob/develop/frappe/deferred_insert.py">Deferred Inserts</a> - 
+this uses Redis as an aggregation layer and flushes writes to the DB using an hourly task.</li>
+<li><a href="https://github.com/frappe/frappe/blob/develop/frappe/database/database.py">Bulk Inserts</a> - 
+this function is used <em>once</em> outside tests in the entire Frappe code base and that too inside a patch 
+for v12. And not at all inside ERPNext.</li>
+</ul>
+<p>ChatGPT found <em>this</em> function. I doubt I ever would have.</p>
+<h2 id="75-lines-of-python">75 Lines Of Python</h2>
+<p>My current solution for handling the file imports consists of combining <code>deferred_insert</code> and <code>bulk_insert</code>.
+Here's the workflow before we dive into the code:</p>
+<ol>
+<li>User attaches 2-3 bulk files to a custom doctype (e.g. <code>Trip Report</code>).</li>
+<li>Using document hooks we parse the files row by row to look for validation errors.</li>
+<li>We create (in-memory) instances of the doctype we are importing (e.g. <code>Trip</code>).</li>
+<li>We serialise these documents and store them in a Redis list.</li>
+<li>Once completely parsed, we retrieve the documents from Redis and bulk write them 
+to the DB in batches.</li>
+</ol>
+<p>Steps 1 - 3 are trivial and common enough that we can skip those. 
+To handle 4 and 5, I have a DB helper module adapted from the <code>deferred_insert</code> module linked above.</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#65737e;"># db.py
+</span><span>
+</span><span>queue_prefix = &quot;</span><span style="color:#a3be8c;">some_prefix_</span><span>&quot;
+</span><span>
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">get_key_name</span><span>(</span><span style="color:#bf616a;">key</span><span>: str) -&gt; str:
+</span><span>    </span><span style="color:#b48ead;">return </span><span style="color:#bf616a;">cstr</span><span>(key).</span><span style="color:#bf616a;">split</span><span>(&quot;</span><span style="color:#a3be8c;">|</span><span>&quot;)[</span><span style="color:#d08770;">1</span><span>]
+</span><span>
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">deferred_insert</span><span>(</span><span style="color:#bf616a;">doc</span><span>):
+</span><span>    </span><span style="color:#65737e;">&quot;&quot;&quot;
+</span><span style="color:#65737e;">    Converts a Frappe document to JSON and stores it in a Redis list.
+</span><span style="color:#65737e;">    &quot;&quot;&quot;
+</span><span>    doctype = doc.doctype
+</span><span>    docname = doc.name
+</span><span>    </span><span style="color:#b48ead;">if </span><span>not (doctype and docname):
+</span><span>        frappe.</span><span style="color:#bf616a;">throw</span><span>(&quot;</span><span style="color:#a3be8c;">Doctype and Docname are required</span><span>&quot;)
+</span><span>    redis_key = </span><span style="color:#b48ead;">f</span><span>&quot;{queue_prefix}{doctype}&quot;
+</span><span>    d = doc.</span><span style="color:#bf616a;">as_dict</span><span>()
+</span><span>    skip = [&quot;</span><span style="color:#a3be8c;">docstatus</span><span>&quot;, &quot;</span><span style="color:#a3be8c;">doctype</span><span>&quot;, &quot;</span><span style="color:#a3be8c;">idx</span><span>&quot;]
+</span><span>    </span><span style="color:#b48ead;">for </span><span>key </span><span style="color:#b48ead;">in </span><span style="color:#bf616a;">list</span><span>(d.</span><span style="color:#bf616a;">keys</span><span>()):
+</span><span>        </span><span style="color:#b48ead;">if </span><span>key.</span><span style="color:#bf616a;">startswith</span><span>(&#39;</span><span style="color:#a3be8c;">_</span><span>&#39;):
+</span><span>            d.</span><span style="color:#bf616a;">pop</span><span>(key)
+</span><span>        </span><span style="color:#b48ead;">if </span><span>key in skip:
+</span><span>            d.</span><span style="color:#bf616a;">pop</span><span>(key)
+</span><span>    frappe.</span><span style="color:#bf616a;">cache</span><span>().</span><span style="color:#bf616a;">rpush</span><span>(redis_key, frappe.</span><span style="color:#bf616a;">as_json</span><span>(d))
+</span><span>
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">bulk_insert</span><span>(</span><span style="color:#bf616a;">doctype</span><span>):
+</span><span>    </span><span style="color:#65737e;">&quot;&quot;&quot;
+</span><span style="color:#65737e;">    Retrieves JSON documents from a Redis list and bulk inserts in the DB in batches.
+</span><span style="color:#65737e;">    &quot;&quot;&quot;
+</span><span>    redis_key = </span><span style="color:#b48ead;">f</span><span>&quot;{queue_prefix}{doctype}&quot;
+</span><span>    queue_keys = frappe.</span><span style="color:#bf616a;">cache</span><span>().</span><span style="color:#bf616a;">get_keys</span><span>(redis_key)
+</span><span>    record_count = </span><span style="color:#d08770;">0
+</span><span>    unique_names = </span><span style="color:#bf616a;">set</span><span>()
+</span><span>    records = []
+</span><span>    </span><span style="color:#b48ead;">for </span><span>key </span><span style="color:#b48ead;">in </span><span>queue_keys:
+</span><span>        queue_key = </span><span style="color:#bf616a;">get_key_name</span><span>(key)
+</span><span>        </span><span style="color:#b48ead;">while </span><span>frappe.</span><span style="color:#bf616a;">cache</span><span>().</span><span style="color:#bf616a;">llen</span><span>(queue_key) &gt; </span><span style="color:#d08770;">0</span><span>:
+</span><span>            record = frappe.</span><span style="color:#bf616a;">cache</span><span>().</span><span style="color:#bf616a;">lpop</span><span>(queue_key)
+</span><span>            record = json.</span><span style="color:#bf616a;">loads</span><span>(record.</span><span style="color:#bf616a;">decode</span><span>(&quot;</span><span style="color:#a3be8c;">utf-8</span><span>&quot;))
+</span><span>            </span><span style="color:#b48ead;">if </span><span style="color:#96b5b4;">isinstance</span><span>(record, dict):
+</span><span>                record_count += </span><span style="color:#d08770;">1
+</span><span>                </span><span style="color:#b48ead;">if </span><span>record[&#39;</span><span style="color:#a3be8c;">name</span><span>&#39;] in unique_names:
+</span><span>                    </span><span style="color:#b48ead;">continue
+</span><span>                unique_names.</span><span style="color:#bf616a;">add</span><span>(record[&#39;</span><span style="color:#a3be8c;">name</span><span>&#39;])
+</span><span>                records.</span><span style="color:#bf616a;">append</span><span>(record)
+</span><span>            </span><span style="color:#b48ead;">else</span><span>:
+</span><span>                </span><span style="color:#96b5b4;">print</span><span>(&quot;</span><span style="color:#a3be8c;">Invalid record</span><span>&quot;)
+</span><span>    </span><span style="color:#b48ead;">if </span><span>records:
+</span><span>        </span><span style="color:#b48ead;">for </span><span>batch </span><span style="color:#b48ead;">in </span><span style="color:#bf616a;">create_batch</span><span>(records, </span><span style="color:#d08770;">1000</span><span>):
+</span><span>            fields = </span><span style="color:#bf616a;">list</span><span>(batch[</span><span style="color:#d08770;">0</span><span>].</span><span style="color:#bf616a;">keys</span><span>())
+</span><span>            values = (</span><span style="color:#bf616a;">tuple</span><span>(record.</span><span style="color:#bf616a;">values</span><span>()) </span><span style="color:#b48ead;">for </span><span>record </span><span style="color:#b48ead;">in </span><span>batch)
+</span><span>            frappe.db.</span><span style="color:#bf616a;">bulk_insert</span><span>(doctype, fields, values)
+</span><span>    frappe.db.</span><span style="color:#bf616a;">commit</span><span>()
+</span><span>    </span><span style="color:#96b5b4;">print</span><span>(</span><span style="color:#b48ead;">f</span><span>&quot;</span><span style="color:#a3be8c;">Inserted </span><span>{record_count}</span><span style="color:#a3be8c;"> records</span><span>&quot;)
+</span><span>    </span><span style="color:#b48ead;">return </span><span>record_count
+</span><span>
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">clear_queue</span><span>(</span><span style="color:#bf616a;">doctype</span><span>):
+</span><span>    </span><span style="color:#65737e;">&quot;&quot;&quot;
+</span><span style="color:#65737e;">    Clear the queue in case we are reprocessing the same import file.
+</span><span style="color:#65737e;">    &quot;&quot;&quot;
+</span><span>    redis_key = </span><span style="color:#b48ead;">f</span><span>&quot;{queue_prefix}{doctype}&quot;
+</span><span>    frappe.</span><span style="color:#bf616a;">cache</span><span>().</span><span style="color:#bf616a;">delete_keys</span><span>(redis_key)
+</span><span>
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">bulk_delete</span><span>(</span><span style="color:#bf616a;">doctype</span><span>, </span><span style="color:#bf616a;">docnames</span><span>):
+</span><span>    </span><span style="color:#65737e;">&quot;&quot;&quot;
+</span><span style="color:#65737e;">    Delete records in bulk. This is a wrapper around frappe.db.sql
+</span><span style="color:#65737e;">    docnames is a list of names
+</span><span style="color:#65737e;">    &quot;&quot;&quot;
+</span><span>    </span><span style="color:#b48ead;">if </span><span>not doctype or not docnames:
+</span><span>        </span><span style="color:#b48ead;">return
+</span><span>    placeholders = &#39;</span><span style="color:#a3be8c;">, </span><span>&#39;.</span><span style="color:#bf616a;">join</span><span>([&#39;</span><span style="color:#d08770;">%s</span><span>&#39;] * </span><span style="color:#96b5b4;">len</span><span>(docnames))
+</span><span>    sql = </span><span style="color:#b48ead;">f</span><span>&quot;&quot;&quot;</span><span style="color:#a3be8c;">DELETE FROM `tab</span><span>{doctype}</span><span style="color:#a3be8c;">` WHERE name IN (</span><span>{placeholders}</span><span style="color:#a3be8c;">)</span><span>&quot;&quot;&quot;
+</span><span>    frappe.db.</span><span style="color:#bf616a;">sql</span><span>(sql, </span><span style="color:#bf616a;">values</span><span>=docnames)
+</span><span>    frappe.db.</span><span style="color:#bf616a;">commit</span><span>()
+</span><span>    </span><span style="color:#96b5b4;">print</span><span>(</span><span style="color:#b48ead;">f</span><span>&quot;</span><span style="color:#a3be8c;">Deleted </span><span>{</span><span style="color:#96b5b4;">len</span><span>(docnames)}</span><span style="color:#a3be8c;"> records</span><span>&quot;)
+</span><span>    </span><span style="color:#b48ead;">return </span><span style="color:#96b5b4;">len</span><span>(docnames)
+</span><span>
+</span></code></pre>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span>
+</span><span style="color:#65737e;"># usage
+</span><span>doctype = &quot;</span><span style="color:#a3be8c;">Some DocType</span><span>&quot;
+</span><span>
+</span><span style="color:#b48ead;">for </span><span>row </span><span style="color:#b48ead;">in </span><span>large_file:
+</span><span>    doc = frappe.</span><span style="color:#bf616a;">new_doc</span><span>(doctype)
+</span><span>    doc.attribute = row[&quot;</span><span style="color:#a3be8c;">some_value</span><span>&quot;]
+</span><span>    doc.name = &quot;</span><span style="color:#a3be8c;">some_name</span><span>&quot; </span><span style="color:#65737e;"># this is necessary as bulk_insert does not trigger autoname
+</span><span>    doc.creation = datetime.</span><span style="color:#bf616a;">now</span><span>()
+</span><span>    doc.modified = datetime.</span><span style="color:#bf616a;">now</span><span>()
+</span><span>    doc.owner = frappe.session.user
+</span><span>    doc.modified_by = frappe.session.user
+</span><span>
+</span><span>    db.</span><span style="color:#bf616a;">deferred_insert</span><span>(doc)
+</span><span>
+</span><span>db.</span><span style="color:#bf616a;">bulk_insert</span><span>(doctype)
+</span><span>
+</span></code></pre>
+<h3 id="how-much-time-does-this-save">How much time does this save?</h3>
+<blockquote>
+<p>For every 150K records, this reduces the import time from about 3000 seconds to ~120 seconds.</p>
+</blockquote>
+<h2 id="notes-improvements">Notes &amp; Improvements</h2>
+<ul>
+<li><code>deferred_insert</code> is not necessary here. You could aggregate the records in a normal Python
+list and pass them to <code>bulk_insert</code> directly. I prefer this queue pattern as it allows me to decouple
+DB inserts completely if I want to.</li>
+<li>The built-in <code>frappe.db.bulk_insert</code> does not support conflicts/updates. I am porting some of my 
+SQL code that handles this over to the Query builder. Will post once completed.</li>
+</ul>
+
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true });
+</script>
+
+      </div>
+    <footer>
+        <p>
+          <small>
+            &copy; 2023 Tej Pochiraju. 
+            Built using <a href="https://www.lunarvim.org/">LunarVim</a> and 
+            <a href="https://www.getzola.org/">Zola</a>.
+          </small>
+        </p> 
+    </footer>
+    </section>
+  </body>
+
+  <style>
+html {
+  max-width: 70ch;
+  padding: 2em 1em;
+  margin: auto;
+  line-height: 1.75;
+  font-size: 1.25em;
+}
+
+h1,h2,h3,h4,h5,h6 {
+  margin: 1em 0 1em 0em;
+}
+
+p,ul,ol {
+  margin-bottom: 1em;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+
+nav ul {
+  list-style: none;  /* removes the default bullet points of ul */
+  padding: 0;        /* removes the default padding of ul */
+  display: flex;     /* makes the li items display in a row */
+  justify-content: flex-start; /* distributes the li items evenly with space around them */
+}
+
+nav ul li {
+  margin-right: 1em; /* Adds space to the right of each li element */
+}
+
+img {
+  max-width: 70ch;
+  height: auto;
+  max-height: 600px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add space between columns and rows */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th, td {
+  border-bottom: 10px; /* Adjust the color to match your page background */
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+}
+/* Highlight alternate rows */
+tr:nth-child(even) {
+  background-color: #e2e2e2;
+}
+blockquote{
+  border-left: 5px solid #e2e2e2;
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 1.0em;
+  }
+
+  nav ul li {
+    font-size: 0.9em;
+  }
+}
+  </style>
+</html>

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="The personal website of an experienced technologist 
+      and co-founder of IoTReady.co. Embracing frugal iterations over long-term plans.">
+    
+    <title>Embedding Metabase Dashboards In Frappe </title>
+    
+    <link rel="shortcut icon" href="/favicon.png">
+    <script defer data-domain="tej.sh" src="https://plausible.tej.sh/js/script.js"></script>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/work">Work</a></li>
+        <li><a href="https://iotready.co" target="_blank">IoTReady</a></li>
+        <li><a href="mailto:e@tej.sh">&#9993;</a></li>
+        <li><a href="https://www.linkedin.com/in/tejpochiraju" target="_blank">&#128279; In</a></li>
+      </ul>
+    </nav>
+    <section>
+      <div>
+        
+<h1>
+  Embedding Metabase Dashboards In Frappe
+</h1>
+<p style="margin-top:-40px;">
+<small>
+    2023-07-19 
+</small>
+</p>
+<p>Since we collect a lot of operational data, it's inevitable that we do a lot of analysis and visualisation too. Our preferred tool for such analyses is <a href="https://www.metabase.com/">Metabase</a>.</p>
+<p>A typical IoTReady workflow solution, e.g. for Warehouse Traceability, works as described below:</p>
+<ul>
+<li>Desk-based staff log into our Frappe applications and modify configuration data (<code>Supplier</code>, <code>SKU</code>...)</li>
+<li>Warehouse floor staff use our hardware and mobile applications to carry out operations.</li>
+<li>Operational data flows into our events infrastructure, <a href="https://bodh.iotready.co">Bodh</a>.</li>
+<li>Validations are carried out against the customer's configuration data using a rules engine.</li>
+<li>Metabase is used to make sense of the large volume of data by carrying out aggregations and comparisons (e.g. <code>Transferred Out</code> vs <code>Transferred In</code>).</li>
+</ul>
+<p>While we could leave it at this, asking users to go to a separate Metabase instance just for the couple of reports that role might need seems unnecessary. Besides, filtering questions and dashboards inside Metabase based on roles in Frappe would need mapping of all the roles and all the users.</p>
+<p><img src="/images/metabase_frappe.png" alt="Metabase In Frappe" /></p>
+<h2 id="iframe-s-filters"><code>&lt;iframe&gt;</code>s &amp; Filters</h2>
+<p>There's a simpler way to approach this:</p>
+<ul>
+<li>create a Metabase dashboard with the appropriate filters and enable them for embedding.</li>
+<li>embed the dashboard in Frappe using an <code>&lt;iframe&gt;</code>. </li>
+<li>use Frappe roles and Metabase dashboard filters to show the users only what they need/are allowed to see.</li>
+<li>abstract this pattern to embed multiple dashboards.</li>
+</ul>
+<p>The Metabase setup is quite simple and <a href="https://www.metabase.com/docs/latest/embedding/introduction">well documented</a>. The important things to note are the <code>Editable</code> filters and enabling embeds in your global configuration. Once you have done this, you need to note your dashboard ID (shown in the URL as well as the <code>Code</code> tab).</p>
+<p><img src="/images/metabase_embed.png" alt="Metabase Dashboard Setup" /></p>
+<p>On the Frappe side, we create a <code>Page</code> that calls some Python code upon loading.</p>
+<pre data-lang="js" style="background-color:#2b303b;color:#c0c5ce;" class="language-js "><code class="language-js" data-lang="js"><span style="color:#65737e;">// Page
+</span><span style="color:#bf616a;">frappe</span><span>.</span><span style="color:#bf616a;">pages</span><span>[&#39;</span><span style="color:#a3be8c;">warehouse-summary</span><span>&#39;].</span><span style="color:#8fa1b3;">on_page_load </span><span>= </span><span style="color:#b48ead;">function </span><span>(</span><span style="color:#bf616a;">wrapper</span><span>) {
+</span><span>	</span><span style="color:#bf616a;">frappe</span><span>.</span><span style="color:#96b5b4;">call</span><span>({
+</span><span>		method: &quot;</span><span style="color:#a3be8c;">app.utils.get_warehouse_dashboard</span><span>&quot;,
+</span><span>		type: &quot;</span><span style="color:#a3be8c;">GET</span><span>&quot;,
+</span><span>		args: {},
+</span><span>		</span><span style="color:#8fa1b3;">callback</span><span>: (</span><span style="color:#bf616a;">r</span><span>) </span><span style="color:#b48ead;">=&gt; </span><span>{
+</span><span>			</span><span style="color:#65737e;">// console.log(&quot;result&quot;, r);
+</span><span>			</span><span style="color:#b48ead;">if </span><span>(</span><span style="color:#bf616a;">r</span><span>.</span><span style="color:#bf616a;">exc</span><span>) {
+</span><span>				</span><span style="color:#ebcb8b;">console</span><span>.</span><span style="color:#96b5b4;">error</span><span>(&quot;</span><span style="color:#a3be8c;">error</span><span>&quot;, </span><span style="color:#bf616a;">r</span><span>.</span><span style="color:#bf616a;">exc</span><span>);
+</span><span>			} </span><span style="color:#b48ead;">else </span><span>{
+</span><span>				</span><span style="color:#8fa1b3;">$</span><span>(</span><span style="color:#bf616a;">wrapper</span><span>).</span><span style="color:#8fa1b3;">html</span><span>(</span><span style="color:#bf616a;">r</span><span>.</span><span style="color:#bf616a;">message</span><span>);
+</span><span>			}
+</span><span>		},
+</span><span>		freeze: </span><span style="color:#d08770;">false</span><span>,
+</span><span>		freeze_message: &quot;&quot;,
+</span><span>		async: </span><span style="color:#d08770;">true</span><span>,
+</span><span>	});
+</span><span>}
+</span></code></pre>
+<p>The Python function (<code>get_warehouse_dashboard</code> in this case) is page specific. This function's job is map to the right dashboard, generate the filters and call a more general function <code>get_metabase_dashboard</code>. This function generates the JWT token needed to load a dashboard from our Metabase instance, creates a custom <code>&lt;iframe&gt;</code> url and renders some HTML with this <code>&lt;iframe&gt;</code>.</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#65737e;"># Controller code
+</span><span style="color:#b48ead;">import </span><span>frappe
+</span><span style="color:#b48ead;">import </span><span>jwt
+</span><span style="color:#b48ead;">import </span><span>time
+</span><span>
+</span><span>@frappe.</span><span style="color:#bf616a;">whitelist</span><span>()
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">get_warehouse_dashboard</span><span>():
+</span><span>    dashboard_id = </span><span style="color:#d08770;">3
+</span><span>    roles = frappe.</span><span style="color:#bf616a;">get_roles</span><span>(frappe.session.user)
+</span><span>    </span><span style="color:#b48ead;">if </span><span>(
+</span><span>        &quot;</span><span style="color:#a3be8c;">BIG BOSS</span><span>&quot; in roles
+</span><span>    ):
+</span><span>        params = {}
+</span><span>    </span><span style="color:#b48ead;">else</span><span>:
+</span><span>        </span><span style="color:#65737e;"># get_list filters Warehouse by user specific permissions.
+</span><span>        warehouses = [r[</span><span style="color:#d08770;">0</span><span>] </span><span style="color:#b48ead;">for </span><span>r </span><span style="color:#b48ead;">in </span><span>frappe.</span><span style="color:#bf616a;">get_list</span><span>(&quot;</span><span style="color:#a3be8c;">Warehouse</span><span>&quot;, </span><span style="color:#bf616a;">as_list</span><span>=</span><span style="color:#d08770;">True</span><span>)]
+</span><span>        params = {&quot;</span><span style="color:#a3be8c;">warehouse</span><span>&quot;: warehouses}
+</span><span>    </span><span style="color:#b48ead;">return </span><span style="color:#bf616a;">get_metabase_dashboard</span><span>(dashboard_id, params)
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">get_metabase_dashboard</span><span>(</span><span style="color:#bf616a;">dashboard_id</span><span>: int, </span><span style="color:#bf616a;">params</span><span>={}):
+</span><span>    </span><span style="color:#bf616a;">METABASE_SITE_URL </span><span>= frappe.conf[&quot;</span><span style="color:#a3be8c;">metabase_site_url</span><span>&quot;]
+</span><span>    </span><span style="color:#bf616a;">METABASE_SECRET_KEY </span><span>= frappe.conf[&quot;</span><span style="color:#a3be8c;">metabase_secret_key</span><span>&quot;]
+</span><span>    payload = {
+</span><span>        &quot;</span><span style="color:#a3be8c;">resource</span><span>&quot;: {&quot;</span><span style="color:#a3be8c;">dashboard</span><span>&quot;: dashboard_id},
+</span><span>        &quot;</span><span style="color:#a3be8c;">params</span><span>&quot;: params,
+</span><span>        &quot;</span><span style="color:#a3be8c;">exp</span><span>&quot;: </span><span style="color:#96b5b4;">round</span><span>(time.</span><span style="color:#bf616a;">time</span><span>()) + (</span><span style="color:#d08770;">60 </span><span>* </span><span style="color:#d08770;">10</span><span>),  </span><span style="color:#65737e;"># 10 minute expiration
+</span><span>    }
+</span><span>    token = jwt.</span><span style="color:#bf616a;">encode</span><span>(payload, </span><span style="color:#bf616a;">METABASE_SECRET_KEY</span><span>, </span><span style="color:#bf616a;">algorithm</span><span>=&quot;</span><span style="color:#a3be8c;">HS256</span><span>&quot;)
+</span><span>
+</span><span>    iframeUrl = (
+</span><span>        </span><span style="color:#bf616a;">METABASE_SITE_URL </span><span>+ &quot;</span><span style="color:#a3be8c;">/embed/dashboard/</span><span>&quot; + token + &quot;</span><span style="color:#a3be8c;">#bordered=false&amp;titled=false</span><span>&quot;
+</span><span>    )
+</span><span>    html = frappe.</span><span style="color:#bf616a;">render_template</span><span>(
+</span><span>        &quot;</span><span style="color:#a3be8c;">templates/includes/metabase_dashboard.html</span><span>&quot;,
+</span><span>        {&quot;</span><span style="color:#a3be8c;">iframeUrl</span><span>&quot;: iframeUrl, &quot;</span><span style="color:#a3be8c;">title</span><span>&quot;: &quot;</span><span style="color:#a3be8c;">Dashboard</span><span>&quot;},
+</span><span>    )
+</span><span>    </span><span style="color:#b48ead;">return </span><span>html
+</span><span>
+</span></code></pre>
+<p>And here's the <code>HTML</code> template. The embedded script makes the iframe responsive.</p>
+<pre data-lang="html" style="background-color:#2b303b;color:#c0c5ce;" class="language-html "><code class="language-html" data-lang="html"><span style="color:#65737e;">&lt;!-- template --&gt;
+</span><span>&lt;</span><span style="color:#bf616a;">iframe </span><span style="color:#d08770;">src</span><span>=&quot;</span><span style="color:#a3be8c;">{{iframeUrl}}</span><span>&quot; </span><span style="color:#d08770;">style</span><span>=&quot;width: </span><span style="color:#d08770;">100%</span><span>;&quot; </span><span style="color:#d08770;">frameborder</span><span>=&quot;</span><span style="color:#a3be8c;">0</span><span>&quot; </span><span style="color:#d08770;">width</span><span>=&quot;</span><span style="color:#a3be8c;">1280</span><span>&quot; </span><span style="color:#d08770;">height</span><span>=&quot;</span><span style="color:#a3be8c;">800</span><span>&quot; </span><span style="color:#d08770;">allowtransparency
+</span><span>    </span><span style="color:#8fa1b3;">id</span><span>=&quot;</span><span style="color:#a3be8c;">Iframe</span><span>&quot;&gt;&lt;/</span><span style="color:#bf616a;">iframe</span><span>&gt;
+</span><span>
+</span><span>&lt;</span><span style="color:#bf616a;">script</span><span>&gt;
+</span><span>    </span><span style="color:#65737e;">// Selecting the iframe element
+</span><span>    </span><span style="color:#b48ead;">var </span><span style="color:#bf616a;">frame </span><span>= document.</span><span style="color:#bf616a;">getElementById</span><span>(&quot;</span><span style="color:#a3be8c;">Iframe</span><span>&quot;);
+</span><span>    </span><span style="color:#65737e;">// Adjusting the iframe height onload event
+</span><span>    </span><span style="color:#ebcb8b;">frame</span><span>.</span><span style="color:#bf616a;">onload </span><span>= </span><span style="color:#b48ead;">function </span><span>()
+</span><span>    </span><span style="color:#65737e;">// function execute while load the iframe
+</span><span>    {
+</span><span>        </span><span style="color:#65737e;">// set the height of the iframe as 
+</span><span>        </span><span style="color:#65737e;">// the height of the iframe content
+</span><span>        </span><span style="color:#bf616a;">frame</span><span>.style.height =
+</span><span>            </span><span style="color:#bf616a;">frame</span><span>.contentWindow.document.body.scrollHeight + &#39;</span><span style="color:#a3be8c;">px</span><span>&#39;;
+</span><span>        </span><span style="color:#65737e;">// set the width of the iframe as the 
+</span><span>        </span><span style="color:#65737e;">// width of the iframe content
+</span><span>        </span><span style="color:#bf616a;">frame</span><span>.style.width =
+</span><span>            </span><span style="color:#bf616a;">frame</span><span>.contentWindow.document.body.scrollWidth + &#39;</span><span style="color:#a3be8c;">px</span><span>&#39;;
+</span><span>    }
+</span><span>&lt;/</span><span style="color:#bf616a;">script</span><span>&gt;
+</span></code></pre>
+<h3 id="notes">Notes</h3>
+<ul>
+<li>This works well in a desktop layout but Metabase dashboards are not a great fit for mobile (even with the responsive code above).</li>
+<li>Test your filters thoroughly - especially if you are at risk of leaking sensitive information, e.g. in a multi-tenant environment.</li>
+<li>If exposing the Metabase instance directly to customers, it's nicer to <a href="https://github.com/metabase/metabase/issues/2146#issue-140719155">hide all tables by default</a> and only enable the ones you want to showcase.</li>
+</ul>
+
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true });
+</script>
+
+      </div>
+    <footer>
+        <p>
+          <small>
+            &copy; 2023 Tej Pochiraju. 
+            Built using <a href="https://www.lunarvim.org/">LunarVim</a> and 
+            <a href="https://www.getzola.org/">Zola</a>.
+          </small>
+        </p> 
+    </footer>
+    </section>
+  </body>
+
+  <style>
+html {
+  max-width: 70ch;
+  padding: 2em 1em;
+  margin: auto;
+  line-height: 1.75;
+  font-size: 1.25em;
+}
+
+h1,h2,h3,h4,h5,h6 {
+  margin: 1em 0 1em 0em;
+}
+
+p,ul,ol {
+  margin-bottom: 1em;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+
+nav ul {
+  list-style: none;  /* removes the default bullet points of ul */
+  padding: 0;        /* removes the default padding of ul */
+  display: flex;     /* makes the li items display in a row */
+  justify-content: flex-start; /* distributes the li items evenly with space around them */
+}
+
+nav ul li {
+  margin-right: 1em; /* Adds space to the right of each li element */
+}
+
+img {
+  max-width: 70ch;
+  height: auto;
+  max-height: 600px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add space between columns and rows */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th, td {
+  border-bottom: 10px; /* Adjust the color to match your page background */
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+}
+/* Highlight alternate rows */
+tr:nth-child(even) {
+  background-color: #e2e2e2;
+}
+blockquote{
+  border-left: 5px solid #e2e2e2;
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 1.0em;
+  }
+
+  nav ul li {
+    font-size: 0.9em;
+  }
+}
+  </style>
+</html>

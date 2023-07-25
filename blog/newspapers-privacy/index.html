@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="The personal website of an experienced technologist 
+      and co-founder of IoTReady.co. Embracing frugal iterations over long-term plans.">
+    
+    <title>Supporting newspapers harms your privacy </title>
+    
+    <link rel="shortcut icon" href="/favicon.png">
+    <script defer data-domain="tej.sh" src="https://plausible.tej.sh/js/script.js"></script>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/work">Work</a></li>
+        <li><a href="https://iotready.co" target="_blank">IoTReady</a></li>
+        <li><a href="mailto:e@tej.sh">&#9993;</a></li>
+        <li><a href="https://www.linkedin.com/in/tejpochiraju" target="_blank">&#128279; In</a></li>
+      </ul>
+    </nav>
+    <section>
+      <div>
+        
+<h1>
+  Supporting newspapers harms your privacy
+</h1>
+<p style="margin-top:-40px;">
+<small>
+    2021-01-28 
+</small>
+</p>
+<p>I am a <em>Gaurdian</em> reader. Have been since 2006. </p>
+<p>I am a Guardian subscriber. Have been, on &amp; off, since they introduced subscriptions.</p>
+<p>I still see this banner every time I go to the site. (OK, I would if I didn't have an adblocker.)</p>
+<p><img src="/images/guardian_subscriber_plea.png" alt="Guardian Subscriber Plea" /></p>
+<hr />
+<blockquote>
+<p>The point I am clumsily trying to make is that I pay but I don't sign in. </p>
+</blockquote>
+<p>When I don't sign in, I have the <em>option</em>/<em>notion</em> of rejecting all tracking. <strong>Once I sign in, all bets are off.</strong></p>
+<p><img src="/images/guardian_privacy_settings.png" alt="Guardian Privacy Settings" /></p>
+<hr />
+<p>Thankfully, the Guardian only has annoying ads and not a paywall. Unlike the other newspapers I subscribe to.</p>
+<table><thead><tr><th>Newspaper I pay for</th><th>Can I read without logging in?</th></tr></thead><tbody>
+<tr><td>The Hindu</td><td>No</td></tr>
+<tr><td>The New York Times</td><td>No</td></tr>
+<tr><td>Wall Street Journal</td><td>No</td></tr>
+<tr><td>Live Mint</td><td>Yes</td></tr>
+<tr><td>The Guardian</td><td>Yes</td></tr>
+</tbody></table>
+<h2 id="why-do-newspapers-want-you-to-sign-in">Why do newspapers want you to sign in?</h2>
+<p>The obvious, if naive, explanation is that you need to answer <code>are you a subscriber?</code>. This is essentially the AAA problem:</p>
+<ul>
+<li>Authentication</li>
+<li>Authorisation</li>
+<li>Accounting</li>
+</ul>
+<p>But the answer to the question above is <strong>solely</strong> <code>Authorization</code>. You don't <em>really</em> need Authentication or Accounting. </p>
+<ul>
+<li>
+<p>The question Authentication answers is <code>Who are you?</code>. </p>
+</li>
+<li>
+<p>Accounting answers <code>What and how much are you consuming?</code></p>
+</li>
+</ul>
+<p>Sure, some degree of Accounting may be needed for tiered access and so on, but last I checked none of these sites offer anything of the kind.</p>
+<h2 id="so-why-do-they-really-need-aaa">So, why do they really need AAA?</h2>
+<p>I don't <strong>know</strong> the answer. But I can guess. It's because they really do want the answers to the age old questions:</p>
+<ul>
+<li><code>Who are you?</code></li>
+<li><code>Why are you here?</code></li>
+</ul>
+<p>Either that or they have a bunch of lazy coders.</p>
+<h2 id="because-there-s-a-better-model">Because there's a better model</h2>
+<img src="/images/blokada_home.png" alt="Blokada Home Screen" height="400" />
+<p>Let me introduce you to <a href="https://blokada.org/#about">Blokada</a>. I have been using it for a couple of years to block trackers and ads on my phone. A few months ago, with the WeChat ban in India, I signed up for <code>Blokada Plus</code>. This gives me access to the toggle button at the bottom of that screen.</p>
+<blockquote>
+<p>Blokada works on my phone, on my web browser and my desktop. And it does not know who I am. </p>
+</blockquote>
+<h3 id="how-does-it-do-that">How does it do that?</h3>
+<p>By asking the only question it needs to, <code>Are you a subscriber?</code>.</p>
+<p>And when it does, I provide my unique, randomly generated, <code>12 character account ID</code> and all is good.</p>
+<p>To access the VPN from my desktop, I log into the web interface with, you guessed it, the account ID. Once logged in, I can generate cryptographic client certificates to use with my VPN client.</p>
+<p><img src="/images/blokada_web.png" alt="Blokada Web Login" /></p>
+<h2 id="what-s-the-catch">What's the catch?</h2>
+<blockquote>
+<p>In theory, this model is no more immune to tracking than any other. </p>
+</blockquote>
+<ul>
+<li>Blokada has a payment processor who did receive some of my identity and card information - I didn't choose the  BTC payment option.</li>
+<li>The payment processor could have shared this information with Blokada.</li>
+<li>Blokada could link the &quot;private&quot; account ID with the identity information. </li>
+<li>Blokada could, right now, be compiling a dossier on every site and app I use.</li>
+</ul>
+<h2 id="but">BUT...</h2>
+<blockquote>
+<p>In practice, it is possible to make the system pretty rugged. </p>
+</blockquote>
+<p>Let's imagine a much more private flow for my beloved Guardian.</p>
+<ul>
+<li>I get tired of the half-page banners/want to encourage better journalism and opt to subscribe. </li>
+<li>The Guardian clears all identifying cookies and session data about me from my browser and their servers.</li>
+<li>I am redirected to a privacy focused payment processor who doubles as an <a href="https://en.wikipedia.org/wiki/Identity_provider">IDP</a>.
+<ul>
+<li><code>UPI, this is not.</code></li>
+</ul>
+</li>
+<li>The payment processor generates a unique ID and sends it to Guardian Towers who then present it to me and make me promise to keep it safely. 
+<ul>
+<li>This could even be a <a href="https://xkcd.com/936/">long, memorable phrase</a>.</li>
+</ul>
+</li>
+<li>I log into Guardian on all three devices I own with this unique ID.</li>
+<li>The Guardian verifies that the ID is kosher with our <code>SuperPrivatePaymentProcessor</code>.</li>
+<li>I rest easier knowing that <a href="https://www.theguardian.com/profile/barneyronay">Barney Ronay</a> will never know that I read every one of his articles. </li>
+</ul>
+<p>It's not that hard. We just need to take this shit seriously.</p>
+
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true });
+</script>
+
+      </div>
+    <footer>
+        <p>
+          <small>
+            &copy; 2023 Tej Pochiraju. 
+            Built using <a href="https://www.lunarvim.org/">LunarVim</a> and 
+            <a href="https://www.getzola.org/">Zola</a>.
+          </small>
+        </p> 
+    </footer>
+    </section>
+  </body>
+
+  <style>
+html {
+  max-width: 70ch;
+  padding: 2em 1em;
+  margin: auto;
+  line-height: 1.75;
+  font-size: 1.25em;
+}
+
+h1,h2,h3,h4,h5,h6 {
+  margin: 1em 0 1em 0em;
+}
+
+p,ul,ol {
+  margin-bottom: 1em;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+
+nav ul {
+  list-style: none;  /* removes the default bullet points of ul */
+  padding: 0;        /* removes the default padding of ul */
+  display: flex;     /* makes the li items display in a row */
+  justify-content: flex-start; /* distributes the li items evenly with space around them */
+}
+
+nav ul li {
+  margin-right: 1em; /* Adds space to the right of each li element */
+}
+
+img {
+  max-width: 70ch;
+  height: auto;
+  max-height: 600px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add space between columns and rows */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th, td {
+  border-bottom: 10px; /* Adjust the color to match your page background */
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+}
+/* Highlight alternate rows */
+tr:nth-child(even) {
+  background-color: #e2e2e2;
+}
+blockquote{
+  border-left: 5px solid #e2e2e2;
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 1.0em;
+  }
+
+  nav ul li {
+    font-size: 0.9em;
+  }
+}
+  </style>
+</html>

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="The personal website of an experienced technologist 
+      and co-founder of IoTReady.co. Embracing frugal iterations over long-term plans.">
+    
+    <title>Phone and OTP Auth For Frappe </title>
+    
+    <link rel="shortcut icon" href="/favicon.png">
+    <script defer data-domain="tej.sh" src="https://plausible.tej.sh/js/script.js"></script>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/work">Work</a></li>
+        <li><a href="https://iotready.co" target="_blank">IoTReady</a></li>
+        <li><a href="mailto:e@tej.sh">&#9993;</a></li>
+        <li><a href="https://www.linkedin.com/in/tejpochiraju" target="_blank">&#128279; In</a></li>
+      </ul>
+    </nav>
+    <section>
+      <div>
+        
+<h1>
+  Phone and OTP Auth For Frappe
+</h1>
+<p style="margin-top:-40px;">
+<small>
+    2023-07-17 
+</small>
+</p>
+<p>A lot of our end-users belong to the non-email majority. For such users, we have long preferred
+using phone and OTP authentication as a reliable alternative. Here's a simple module that implements 
+this using MSG91. </p>
+<blockquote>
+<p>Note that Frappe supports 2-Factor authentication using a phone and OTP. Here, we are talking about 
+phone and OTP as the first and only factor.</p>
+</blockquote>
+<h2 id="setup">Setup</h2>
+<p>In order to use this code, we need to:</p>
+<ul>
+<li>Map the phone number to each user - there's a <code>mobile_no</code> field in the <code>User</code> doctype.</li>
+<li>Configure our SMS provider's credentials and template ID in <code>site_config.json</code> as per the keys in the code.</li>
+</ul>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">import </span><span>frappe
+</span><span style="color:#b48ead;">import </span><span>string
+</span><span style="color:#b48ead;">import </span><span>random
+</span><span style="color:#b48ead;">import </span><span>requests
+</span><span>
+</span><span style="color:#bf616a;">REDIS_PREFIX </span><span>= &quot;</span><span style="color:#a3be8c;">otp</span><span>&quot;
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">random_string_generator</span><span>(</span><span style="color:#bf616a;">str_size</span><span>, </span><span style="color:#bf616a;">allowed_chars</span><span>):
+</span><span>    </span><span style="color:#b48ead;">return </span><span>&quot;&quot;.</span><span style="color:#bf616a;">join</span><span>(random.</span><span style="color:#bf616a;">choice</span><span>(allowed_chars) </span><span style="color:#b48ead;">for </span><span>x </span><span style="color:#b48ead;">in </span><span style="color:#96b5b4;">range</span><span>(str_size))
+</span><span>
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">send_sms</span><span>(</span><span style="color:#bf616a;">phone</span><span>, </span><span style="color:#bf616a;">otp</span><span>, </span><span style="color:#bf616a;">domain</span><span>):
+</span><span>    </span><span style="color:#65737e;"># Strip out + when sending SMS
+</span><span>    phone = phone.</span><span style="color:#bf616a;">replace</span><span>(&quot;</span><span style="color:#a3be8c;">+</span><span>&quot;, &quot;&quot;)
+</span><span>    url = &quot;</span><span style="color:#a3be8c;">https://control.msg91.com/api/v5/flow/</span><span>&quot;
+</span><span>
+</span><span>    headers = {
+</span><span>        &quot;</span><span style="color:#a3be8c;">accept</span><span>&quot;: &quot;</span><span style="color:#a3be8c;">application/json</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">content-type</span><span>&quot;: &quot;</span><span style="color:#a3be8c;">application/json</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">authkey</span><span>&quot;: frappe.conf[&quot;</span><span style="color:#a3be8c;">msg91_authkey</span><span>&quot;],
+</span><span>    }
+</span><span>    payload = {
+</span><span>        &quot;</span><span style="color:#a3be8c;">template_id</span><span>&quot;: frappe.conf[&quot;</span><span style="color:#a3be8c;">msg91_template_id</span><span>&quot;],
+</span><span>        &quot;</span><span style="color:#a3be8c;">sender</span><span>&quot;: frappe.conf.</span><span style="color:#bf616a;">get</span><span>(&quot;</span><span style="color:#a3be8c;">msg91_sender_id</span><span>&quot;) or &quot;</span><span style="color:#a3be8c;">IoTRDY</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">short_url</span><span>&quot;: &quot;</span><span style="color:#a3be8c;">0</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">mobiles</span><span>&quot;: phone,
+</span><span>        &quot;</span><span style="color:#a3be8c;">var1</span><span>&quot;: domain,
+</span><span>        &quot;</span><span style="color:#a3be8c;">var2</span><span>&quot;: otp,
+</span><span>    }
+</span><span>    response = requests.</span><span style="color:#bf616a;">post</span><span>(url, </span><span style="color:#bf616a;">json</span><span>=payload, </span><span style="color:#bf616a;">headers</span><span>=headers)
+</span><span>    </span><span style="color:#b48ead;">try</span><span>:
+</span><span>        </span><span style="color:#b48ead;">return </span><span>response.</span><span style="color:#bf616a;">json</span><span>()
+</span><span>    </span><span style="color:#b48ead;">except </span><span>Exception </span><span style="color:#b48ead;">as </span><span>e:
+</span><span>        </span><span style="color:#b48ead;">return </span><span>{&quot;</span><span style="color:#a3be8c;">error</span><span>&quot;: </span><span style="color:#bf616a;">str</span><span>(e)}
+</span><span>
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">generate_otp_for_phone</span><span>(</span><span style="color:#bf616a;">phone</span><span>, </span><span style="color:#bf616a;">domain</span><span>):
+</span><span>    payload = {
+</span><span>        &quot;</span><span style="color:#a3be8c;">success</span><span>&quot;: </span><span style="color:#d08770;">False</span><span>,
+</span><span>        &quot;</span><span style="color:#a3be8c;">message</span><span>&quot;: </span><span style="color:#d08770;">None</span><span>,
+</span><span>    }
+</span><span>    </span><span style="color:#b48ead;">if </span><span>phone[</span><span style="color:#d08770;">0</span><span>] != &quot;</span><span style="color:#a3be8c;">+</span><span>&quot;:
+</span><span>        phone = </span><span style="color:#b48ead;">f</span><span>&quot;</span><span style="color:#a3be8c;">+91</span><span>{phone}&quot;  </span><span style="color:#65737e;"># Set India as default
+</span><span>    otp = </span><span style="color:#bf616a;">random_string_generator</span><span>(</span><span style="color:#d08770;">4</span><span>, string.digits)
+</span><span>    frappe.</span><span style="color:#bf616a;">cache</span><span>().</span><span style="color:#bf616a;">set</span><span>(</span><span style="color:#b48ead;">f</span><span>&quot;{</span><span style="color:#bf616a;">REDIS_PREFIX</span><span>}</span><span style="color:#a3be8c;">:</span><span>{phone}&quot;, otp, </span><span style="color:#bf616a;">ex</span><span>=</span><span style="color:#d08770;">300</span><span>)
+</span><span>    </span><span style="color:#b48ead;">try</span><span>:
+</span><span>        </span><span style="color:#bf616a;">send_sms</span><span>(</span><span style="color:#bf616a;">phone</span><span>=phone, </span><span style="color:#bf616a;">otp</span><span>=otp, </span><span style="color:#bf616a;">domain</span><span>=domain)
+</span><span>        payload[&quot;</span><span style="color:#a3be8c;">success</span><span>&quot;] = </span><span style="color:#d08770;">True
+</span><span>        payload[&quot;</span><span style="color:#a3be8c;">message</span><span>&quot;] = </span><span style="color:#b48ead;">f</span><span>&quot;</span><span style="color:#a3be8c;">OTP sent by SMS sent to </span><span>{phone}&quot;
+</span><span>    </span><span style="color:#b48ead;">except </span><span>Exception </span><span style="color:#b48ead;">as </span><span>e:
+</span><span>        </span><span style="color:#96b5b4;">print</span><span>(</span><span style="color:#bf616a;">str</span><span>(e))
+</span><span>        payload[&quot;</span><span style="color:#a3be8c;">message</span><span>&quot;] = </span><span style="color:#bf616a;">str</span><span>(e)
+</span><span>    </span><span style="color:#b48ead;">return </span><span>payload
+</span><span>
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">verify_otp_for_phone</span><span>(</span><span style="color:#bf616a;">phone</span><span>, </span><span style="color:#bf616a;">otp</span><span>):
+</span><span>    payload = {
+</span><span>        &quot;</span><span style="color:#a3be8c;">success</span><span>&quot;: </span><span style="color:#d08770;">False</span><span>,
+</span><span>        &quot;</span><span style="color:#a3be8c;">message</span><span>&quot;: </span><span style="color:#d08770;">None</span><span>,
+</span><span>    }
+</span><span>    </span><span style="color:#b48ead;">if </span><span>phone[</span><span style="color:#d08770;">0</span><span>] != &quot;</span><span style="color:#a3be8c;">+</span><span>&quot;:
+</span><span>        phone = </span><span style="color:#b48ead;">f</span><span>&quot;</span><span style="color:#a3be8c;">+91</span><span>{phone}&quot;  </span><span style="color:#65737e;"># Set India as default
+</span><span>    key = </span><span style="color:#b48ead;">f</span><span>&quot;{</span><span style="color:#bf616a;">REDIS_PREFIX</span><span>}</span><span style="color:#a3be8c;">:</span><span>{phone}&quot;
+</span><span>    stored_otp = frappe.</span><span style="color:#bf616a;">cache</span><span>().</span><span style="color:#bf616a;">get</span><span>(key).</span><span style="color:#bf616a;">decode</span><span>(&quot;</span><span style="color:#a3be8c;">utf-8</span><span>&quot;)
+</span><span>    </span><span style="color:#b48ead;">if </span><span>not stored_otp == otp:
+</span><span>        payload[&quot;</span><span style="color:#a3be8c;">message</span><span>&quot;] = &quot;</span><span style="color:#a3be8c;">Incorrect OTP.</span><span>&quot;
+</span><span>        </span><span style="color:#b48ead;">return </span><span>payload
+</span><span>
+</span><span>    </span><span style="color:#b48ead;">try</span><span>:
+</span><span>        user = frappe.db.</span><span style="color:#bf616a;">get</span><span>(&quot;</span><span style="color:#a3be8c;">User</span><span>&quot;, {&quot;</span><span style="color:#a3be8c;">mobile_no</span><span>&quot;: phone})
+</span><span>    </span><span style="color:#b48ead;">except </span><span>Exception </span><span style="color:#b48ead;">as </span><span>e:
+</span><span>        payload[&quot;</span><span style="color:#a3be8c;">message</span><span>&quot;] = &quot;</span><span style="color:#a3be8c;">User not found.</span><span>&quot;
+</span><span>        </span><span style="color:#b48ead;">return </span><span>payload
+</span><span>
+</span><span>    </span><span style="color:#65737e;"># Delete stored OTP
+</span><span>    frappe.</span><span style="color:#bf616a;">cache</span><span>().</span><span style="color:#bf616a;">delete_key</span><span>(key)
+</span><span>
+</span><span>    </span><span style="color:#65737e;"># Now log in as user
+</span><span>    </span><span style="color:#b48ead;">from </span><span>frappe.auth </span><span style="color:#b48ead;">import </span><span>CookieManager, LoginManager
+</span><span>
+</span><span>    frappe.utils.</span><span style="color:#bf616a;">set_request</span><span>(</span><span style="color:#bf616a;">path</span><span>=&quot;</span><span style="color:#a3be8c;">/</span><span>&quot;)
+</span><span>    frappe.local.cookie_manager = </span><span style="color:#bf616a;">CookieManager</span><span>()
+</span><span>    frappe.local.login_manager = </span><span style="color:#bf616a;">LoginManager</span><span>()
+</span><span>    </span><span style="color:#b48ead;">return </span><span>frappe.local.login_manager.</span><span style="color:#bf616a;">login_as</span><span>(user.name)
+</span><span>
+</span></code></pre>
+<p>We then expose these functions via <code>api.py</code> so they can be called from our mobile apps:</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">import </span><span>frappe
+</span><span style="color:#b48ead;">from </span><span>iotready_otp.utils </span><span style="color:#b48ead;">import </span><span>generate_otp_for_phone, verify_otp_for_phone
+</span><span>
+</span><span>
+</span><span>@frappe.</span><span style="color:#bf616a;">whitelist</span><span>(</span><span style="color:#bf616a;">allow_guest</span><span>=</span><span style="color:#d08770;">True</span><span>)
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">generate_otp</span><span>(</span><span style="color:#bf616a;">phone</span><span>):
+</span><span>    </span><span style="color:#b48ead;">return </span><span style="color:#bf616a;">generate_otp_for_phone</span><span>(phone)
+</span><span>
+</span><span>
+</span><span>@frappe.</span><span style="color:#bf616a;">whitelist</span><span>(</span><span style="color:#bf616a;">allow_guest</span><span>=</span><span style="color:#d08770;">True</span><span>)
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">verify_otp</span><span>(</span><span style="color:#bf616a;">phone</span><span>, </span><span style="color:#bf616a;">otp</span><span>):
+</span><span>    </span><span style="color:#b48ead;">return </span><span style="color:#bf616a;">verify_otp_for_phone</span><span>(phone, otp)
+</span><span>
+</span></code></pre>
+<h3 id="notes">Notes</h3>
+<ul>
+<li>You don't have to pass the <code>domain</code> parameter and could instead configure this per site in <code>site_config.json</code></li>
+<li>You could modify Frappe's response status code and throw a <code>403</code> in case of incorrect OTPs. </li>
+</ul>
+
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true });
+</script>
+
+      </div>
+    <footer>
+        <p>
+          <small>
+            &copy; 2023 Tej Pochiraju. 
+            Built using <a href="https://www.lunarvim.org/">LunarVim</a> and 
+            <a href="https://www.getzola.org/">Zola</a>.
+          </small>
+        </p> 
+    </footer>
+    </section>
+  </body>
+
+  <style>
+html {
+  max-width: 70ch;
+  padding: 2em 1em;
+  margin: auto;
+  line-height: 1.75;
+  font-size: 1.25em;
+}
+
+h1,h2,h3,h4,h5,h6 {
+  margin: 1em 0 1em 0em;
+}
+
+p,ul,ol {
+  margin-bottom: 1em;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+
+nav ul {
+  list-style: none;  /* removes the default bullet points of ul */
+  padding: 0;        /* removes the default padding of ul */
+  display: flex;     /* makes the li items display in a row */
+  justify-content: flex-start; /* distributes the li items evenly with space around them */
+}
+
+nav ul li {
+  margin-right: 1em; /* Adds space to the right of each li element */
+}
+
+img {
+  max-width: 70ch;
+  height: auto;
+  max-height: 600px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add space between columns and rows */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th, td {
+  border-bottom: 10px; /* Adjust the color to match your page background */
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+}
+/* Highlight alternate rows */
+tr:nth-child(even) {
+  background-color: #e2e2e2;
+}
+blockquote{
+  border-left: 5px solid #e2e2e2;
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 1.0em;
+  }
+
+  nav ul li {
+    font-size: 0.9em;
+  }
+}
+  </style>
+</html>

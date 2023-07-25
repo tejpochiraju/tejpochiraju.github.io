@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="The personal website of an experienced technologist 
+      and co-founder of IoTReady.co. Embracing frugal iterations over long-term plans.">
+    
+    <title>External API Integration Logs For Frappe Apps </title>
+    
+    <link rel="shortcut icon" href="/favicon.png">
+    <script defer data-domain="tej.sh" src="https://plausible.tej.sh/js/script.js"></script>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/work">Work</a></li>
+        <li><a href="https://iotready.co" target="_blank">IoTReady</a></li>
+        <li><a href="mailto:e@tej.sh">&#9993;</a></li>
+        <li><a href="https://www.linkedin.com/in/tejpochiraju" target="_blank">&#128279; In</a></li>
+      </ul>
+    </nav>
+    <section>
+      <div>
+        
+<h1>
+  External API Integration Logs For Frappe Apps
+</h1>
+<p style="margin-top:-40px;">
+<small>
+    2023-07-25 
+</small>
+</p>
+<p>Very frequently, we need to integrate our Frappe apps with customer/third-party applications. This could be a warehouse management system, an ERP or an employee vetting SaaS. </p>
+<p>With <code>requests</code>, secret storage using <code>frappe.conf</code> and <code>hooks</code>, tasks like this are relatively straightforward. Having persistent logs for such integrations is key to quickly identifying and patching errors.</p>
+<p>By now you know the theme. Yes, Frappe has a built-in <code>DocType</code> for such logs. And yes, it's only documented in the source code.</p>
+<h3 id="meet-integration-request">Meet <code>Integration Request</code></h3>
+<p>Frappe even ships with a helper function to create these logs - <code>frappe.integrations.utils.create_request_log</code>. This function is used a few times in the ERPNext and <code>Payments</code> codebases to handle payment provider integrations. Here's how it works. </p>
+<h4 id="create-request-log"><code>create_request_log</code></h4>
+<p>The function uses kwargs and default values to stay agnostic of the actual API request.</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">create_request_log</span><span>(
+</span><span>	</span><span style="color:#bf616a;">data</span><span>,
+</span><span>	</span><span style="color:#bf616a;">integration_type</span><span>=</span><span style="color:#d08770;">None</span><span>,
+</span><span>	</span><span style="color:#bf616a;">service_name</span><span>=</span><span style="color:#d08770;">None</span><span>,
+</span><span>	</span><span style="color:#bf616a;">name</span><span>=</span><span style="color:#d08770;">None</span><span>,
+</span><span>	</span><span style="color:#bf616a;">error</span><span>=</span><span style="color:#d08770;">None</span><span>,
+</span><span>	</span><span style="color:#bf616a;">request_headers</span><span>=</span><span style="color:#d08770;">None</span><span>,
+</span><span>	</span><span style="color:#bf616a;">output</span><span>=</span><span style="color:#d08770;">None</span><span>,
+</span><span>	**</span><span style="color:#bf616a;">kwargs</span><span>,
+</span><span>):
+</span><span>	</span><span style="color:#65737e;">&quot;&quot;&quot;
+</span><span style="color:#65737e;">	DEPRECATED: The parameter integration_type will be removed in the next major release.
+</span><span style="color:#65737e;">	Use is_remote_request instead.
+</span><span style="color:#65737e;">	&quot;&quot;&quot;
+</span><span>	</span><span style="color:#b48ead;">if </span><span>integration_type == &quot;</span><span style="color:#a3be8c;">Remote</span><span>&quot;:
+</span><span>		kwargs[&quot;</span><span style="color:#a3be8c;">is_remote_request</span><span>&quot;] = </span><span style="color:#d08770;">1
+</span><span>
+</span><span>	</span><span style="color:#b48ead;">elif </span><span>integration_type == &quot;</span><span style="color:#a3be8c;">Subscription Notification</span><span>&quot;:
+</span><span>		kwargs[&quot;</span><span style="color:#a3be8c;">request_description</span><span>&quot;] = integration_type
+</span><span>
+</span><span>	reference_doctype = reference_docname = </span><span style="color:#d08770;">None
+</span><span>	</span><span style="color:#b48ead;">if </span><span>&quot;</span><span style="color:#a3be8c;">reference_doctype</span><span>&quot; not in kwargs:
+</span><span>		</span><span style="color:#b48ead;">if </span><span style="color:#96b5b4;">isinstance</span><span>(data, str):
+</span><span>			data = json.</span><span style="color:#bf616a;">loads</span><span>(data)
+</span><span>
+</span><span>		reference_doctype = data.</span><span style="color:#bf616a;">get</span><span>(&quot;</span><span style="color:#a3be8c;">reference_doctype</span><span>&quot;)
+</span><span>		reference_docname = data.</span><span style="color:#bf616a;">get</span><span>(&quot;</span><span style="color:#a3be8c;">reference_docname</span><span>&quot;)
+</span><span>
+</span><span>	integration_request = frappe.</span><span style="color:#bf616a;">get_doc</span><span>(
+</span><span>		{
+</span><span>			&quot;</span><span style="color:#a3be8c;">doctype</span><span>&quot;: &quot;</span><span style="color:#a3be8c;">Integration Request</span><span>&quot;,
+</span><span>			&quot;</span><span style="color:#a3be8c;">integration_request_service</span><span>&quot;: service_name,
+</span><span>			&quot;</span><span style="color:#a3be8c;">request_headers</span><span>&quot;: </span><span style="color:#bf616a;">get_json</span><span>(request_headers),
+</span><span>			&quot;</span><span style="color:#a3be8c;">data</span><span>&quot;: </span><span style="color:#bf616a;">get_json</span><span>(data),
+</span><span>			&quot;</span><span style="color:#a3be8c;">output</span><span>&quot;: </span><span style="color:#bf616a;">get_json</span><span>(output),
+</span><span>			&quot;</span><span style="color:#a3be8c;">error</span><span>&quot;: </span><span style="color:#bf616a;">get_json</span><span>(error),
+</span><span>			&quot;</span><span style="color:#a3be8c;">reference_doctype</span><span>&quot;: reference_doctype,
+</span><span>			&quot;</span><span style="color:#a3be8c;">reference_docname</span><span>&quot;: reference_docname,
+</span><span>			**kwargs,
+</span><span>		}
+</span><span>	)
+</span><span>
+</span><span>	</span><span style="color:#b48ead;">if </span><span>name:
+</span><span>		integration_request.flags._name = name
+</span><span>
+</span><span>	integration_request.</span><span style="color:#bf616a;">insert</span><span>(</span><span style="color:#bf616a;">ignore_permissions</span><span>=</span><span style="color:#d08770;">True</span><span>)
+</span><span>	frappe.db.</span><span style="color:#bf616a;">commit</span><span>()
+</span><span>
+</span><span>	</span><span style="color:#b48ead;">return </span><span>integration_request
+</span></code></pre>
+<h4 id="usage">Usage</h4>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">import </span><span>requests
+</span><span style="color:#b48ead;">import </span><span>json
+</span><span style="color:#b48ead;">from </span><span>frappe.integrations.utils </span><span style="color:#b48ead;">import </span><span>create_request_log
+</span><span style="color:#b48ead;">from </span><span>frappe.model.document </span><span style="color:#b48ead;">import </span><span>Document
+</span><span>
+</span><span style="color:#b48ead;">class </span><span style="color:#ebcb8b;">CustomDoctype</span><span style="color:#eff1f5;">(</span><span style="color:#a3be8c;">Document</span><span style="color:#eff1f5;">):
+</span><span>    </span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">some_hook</span><span>(</span><span style="color:#bf616a;">self</span><span>)
+</span><span>        response = requests.</span><span style="color:#bf616a;">post</span><span>(some_url, </span><span style="color:#bf616a;">data</span><span>=json.</span><span style="color:#bf616a;">dumps</span><span>(some_data_dict), </span><span style="color:#bf616a;">headers</span><span>=some_header_dict)
+</span><span>        kwargs = {
+</span><span>            &quot;</span><span style="color:#a3be8c;">url</span><span>&quot;: some_url, 
+</span><span>            &quot;</span><span style="color:#a3be8c;">is_remote_request</span><span>&quot;: </span><span style="color:#d08770;">1</span><span>, 
+</span><span>            &quot;</span><span style="color:#a3be8c;">reference_doctype</span><span>&quot;: </span><span style="color:#bf616a;">self</span><span>.doctype,
+</span><span>            &quot;</span><span style="color:#a3be8c;">reference_docname</span><span>&quot;: </span><span style="color:#bf616a;">self</span><span>.name,
+</span><span>            &quot;</span><span style="color:#a3be8c;">status_code</span><span>&quot;: response.status_code,
+</span><span>            &quot;</span><span style="color:#a3be8c;">status</span><span>&quot;: &quot;</span><span style="color:#a3be8c;">Completed</span><span>&quot; </span><span style="color:#b48ead;">if </span><span>response.status_code == </span><span style="color:#d08770;">200 </span><span style="color:#b48ead;">else </span><span>&quot;</span><span style="color:#a3be8c;">Failed</span><span>&quot;
+</span><span>        }
+</span><span>        output = error = </span><span style="color:#d08770;">None 
+</span><span>        </span><span style="color:#b48ead;">if </span><span>response.status_code == </span><span style="color:#d08770;">200</span><span>:
+</span><span>            output = response.</span><span style="color:#bf616a;">json</span><span>()
+</span><span>        </span><span style="color:#b48ead;">else</span><span>:
+</span><span>            error = response.text
+</span><span>        </span><span style="color:#bf616a;">create_request_log</span><span>(</span><span style="color:#bf616a;">data</span><span>=some_data_dict, </span><span style="color:#bf616a;">service_name</span><span>=&quot;</span><span style="color:#a3be8c;">some_service</span><span>&quot;, </span><span style="color:#bf616a;">output</span><span>=output, </span><span style="color:#bf616a;">error</span><span>=error, </span><span style="color:#bf616a;">request_headers</span><span>=some_header_dict, **kwargs)
+</span><span>
+</span></code></pre>
+<h3 id="we-can-do-better">We Can Do Better</h3>
+<p><code>create_request_log</code> works fine. However, given its synchronous nature, usage adds a time delay. We can instead use our <a href="/blog/frappe-deferred-bulk/">bulk <code>deferred_insert</code></a> to reduce delays. While we are doing that, let's all simplify the function signature.</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">import </span><span>requests
+</span><span style="color:#b48ead;">import </span><span>json
+</span><span style="color:#b48ead;">import </span><span>frappe
+</span><span style="color:#b48ead;">from </span><span>datetime </span><span style="color:#b48ead;">import </span><span>datetime
+</span><span style="color:#b48ead;">from </span><span>custom_app.db </span><span style="color:#b48ead;">import </span><span>deferred_insert
+</span><span style="color:#b48ead;">from </span><span>frappe.model.document </span><span style="color:#b48ead;">import </span><span>Document
+</span><span>
+</span><span style="color:#65737e;"># I usually keep this function in a `utils.py` and call `bulk_insert(&#39;Integration Request&#39;)` in a minutely task
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">insert_log</span><span>(</span><span style="color:#bf616a;">response</span><span>, </span><span style="color:#bf616a;">doc</span><span>=</span><span style="color:#d08770;">None</span><span>):
+</span><span>    </span><span style="color:#65737e;">&quot;&quot;&quot;
+</span><span style="color:#65737e;">    `doc` is a Frappe document.
+</span><span style="color:#65737e;">    `response` is a `requests` response.
+</span><span style="color:#65737e;">    &quot;&quot;&quot;
+</span><span>    log = frappe.</span><span style="color:#bf616a;">new_doc</span><span>(&quot;</span><span style="color:#a3be8c;">Integration Request</span><span>&quot;)
+</span><span>    log.name = frappe.</span><span style="color:#bf616a;">generate_hash</span><span>(</span><span style="color:#bf616a;">length</span><span>=</span><span style="color:#d08770;">10</span><span>)
+</span><span>    log.creation = datetime.</span><span style="color:#bf616a;">now</span><span>()
+</span><span>    log.modified = datetime.</span><span style="color:#bf616a;">now</span><span>()
+</span><span>    log.owner = frappe.session.user
+</span><span>    log.modified_by = frappe.session.user
+</span><span>    log.url = response.url
+</span><span>    log.reference_doctype = doc and doc.doctype
+</span><span>    log.reference_docname = doc and doc.name
+</span><span>    log.request_headers = response.request.headers
+</span><span>    log.data = response.request.body
+</span><span>    log.status_code = response.status_code
+</span><span>    </span><span style="color:#b48ead;">if </span><span>log.status_code == </span><span style="color:#d08770;">200</span><span>:
+</span><span>        log.status = &quot;</span><span style="color:#a3be8c;">Completed</span><span>&quot;
+</span><span>        log.output = response.text
+</span><span>    </span><span style="color:#b48ead;">else</span><span>:
+</span><span>        log.status = &quot;</span><span style="color:#a3be8c;">Failed</span><span>&quot;
+</span><span>        log.error = response.text
+</span><span>    </span><span style="color:#bf616a;">deferred_insert</span><span>(log)
+</span><span>
+</span><span>
+</span><span style="color:#b48ead;">class </span><span style="color:#ebcb8b;">CustomDoctype</span><span style="color:#eff1f5;">(</span><span style="color:#a3be8c;">Document</span><span style="color:#eff1f5;">):
+</span><span>    </span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">some_hook</span><span>(</span><span style="color:#bf616a;">self</span><span>)
+</span><span>        response = requests.</span><span style="color:#bf616a;">post</span><span>(some_url, </span><span style="color:#bf616a;">data</span><span>=json.</span><span style="color:#bf616a;">dumps</span><span>(some_data_dict), </span><span style="color:#bf616a;">headers</span><span>=some_header_dict)
+</span><span>        </span><span style="color:#bf616a;">insert_log</span><span>(response, </span><span style="color:#bf616a;">self</span><span>)
+</span><span>
+</span></code></pre>
+<h3 id="notes">Notes</h3>
+<ul>
+<li>It's critical to redact sensitive information, if any, from <code>response.request.body</code> and <code>response.text</code></li>
+<li>If you are making a large number of requests, you may want to prune these logs every so often - especially if the <code>data</code> or the response are large.</li>
+</ul>
+
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true });
+</script>
+
+      </div>
+    <footer>
+        <p>
+          <small>
+            &copy; 2023 Tej Pochiraju. 
+            Built using <a href="https://www.lunarvim.org/">LunarVim</a> and 
+            <a href="https://www.getzola.org/">Zola</a>.
+          </small>
+        </p> 
+    </footer>
+    </section>
+  </body>
+
+  <style>
+html {
+  max-width: 70ch;
+  padding: 2em 1em;
+  margin: auto;
+  line-height: 1.75;
+  font-size: 1.25em;
+}
+
+h1,h2,h3,h4,h5,h6 {
+  margin: 1em 0 1em 0em;
+}
+
+p,ul,ol {
+  margin-bottom: 1em;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+
+nav ul {
+  list-style: none;  /* removes the default bullet points of ul */
+  padding: 0;        /* removes the default padding of ul */
+  display: flex;     /* makes the li items display in a row */
+  justify-content: flex-start; /* distributes the li items evenly with space around them */
+}
+
+nav ul li {
+  margin-right: 1em; /* Adds space to the right of each li element */
+}
+
+img {
+  max-width: 70ch;
+  height: auto;
+  max-height: 600px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add space between columns and rows */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th, td {
+  border-bottom: 10px; /* Adjust the color to match your page background */
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+}
+/* Highlight alternate rows */
+tr:nth-child(even) {
+  background-color: #e2e2e2;
+}
+blockquote{
+  border-left: 5px solid #e2e2e2;
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 1.0em;
+  }
+
+  nav ul li {
+    font-size: 0.9em;
+  }
+}
+  </style>
+</html>

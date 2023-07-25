@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="The personal website of an experienced technologist 
+      and co-founder of IoTReady.co. Embracing frugal iterations over long-term plans.">
+    
+    <title>Layered Architecture With Frappe </title>
+    
+    <link rel="shortcut icon" href="/favicon.png">
+    <script defer data-domain="tej.sh" src="https://plausible.tej.sh/js/script.js"></script>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/work">Work</a></li>
+        <li><a href="https://iotready.co" target="_blank">IoTReady</a></li>
+        <li><a href="mailto:e@tej.sh">&#9993;</a></li>
+        <li><a href="https://www.linkedin.com/in/tejpochiraju" target="_blank">&#128279; In</a></li>
+      </ul>
+    </nav>
+    <section>
+      <div>
+        
+<h1>
+  Layered Architecture With Frappe
+</h1>
+<p style="margin-top:-40px;">
+<small>
+    2023-07-21 
+</small>
+</p>
+<p>Being different is table stakes for web frameworks. And Frappe is more different than most. There was a time when Frappe's <a href="https://frappeframework.com/docs/v14/user/en/basics/architecture">architecture diagram</a> was one of the first things you saw in the documentation and understanding it was key to get started. Today, it's buried a long, long way down in the table of contents - presumably as part of an effort to make the framework seem less daunting.</p>
+<p>Frappe's revolutionary concept, besides being metadata driven, is the use of <em>apps</em> to organise functionality. Frappe itself is an app and all other apps depend on the Frappe app. A typical deployment or <code>site</code> will contain multiple apps that together provide the functionality that the site needs. The most common, and certainly the largest, Frappe app is ERPNext. When you need to provide customer specific ERPNext functionality, you install Frappe, ERPNext and your custom app that depends on these two. The application stack looks like this:</p>
+<table style="border: 1px solid black; border-collapse: collapse;">
+  <tr>
+    <td style="border: 1px solid black;">Custom App</td>
+  </tr>
+  <tr>
+    <td style="border: 1px solid black;">ERPNext</td>
+  </tr>
+  <tr>
+    <td style="border: 1px solid black;">Frappe</td>
+  </tr>
+</table>
+<p>In this stack, Frappe knows nothing about ERPNext or your custom app. ERPnext depends on Frappe but knows nothing about your custom app. Your custom app depends on Frappe and ERPNext. So on and so forth.</p>
+<p>This is how I have been building Frappe apps, with or without ERPNext, for 5 years now. And <a href="https://blog.europython.eu/kraken-technologies-how-we-organize-our-very-large-pythonmonolith/">until yesterday</a>, I didn't realise that this follows the best practices of layered architecture. Even Frappe's documentation does not mention layering once. On reflection, I think this architecture is what makes working in Frappe so productive.</p>
+<blockquote>
+<p>And, very, occasionally hairy when something you don't control shifts from underneath you.</p>
+</blockquote>
+<h2 id="inversion-of-control">Inversion Of Control</h2>
+<p>Layering is not all rosy though. As the Kraken Tech blog above notes, layering also induces incentives to make the top layers heavier. This obviously reduces code reuse. The approach they suggest to counteract this tendency is to use <a href="https://seddonym.me/2019/04/15/inversion-of-control/">Inversion Of Control</a>. Another phrase that I had heard in passing but never explored or understood. </p>
+<p>And once you read about it, you realise that this is implemented in Frappe too and we use it on a daily basis. <a href="https://frappeframework.com/docs/v14/user/en/python-api/hooks"><code>hooks</code></a> are essentially Frappe's way to provide inversion of control. </p>
+<pre class="mermaid">
+  graph TD;
+    CustomApp-- depends --&gt;Frappe;
+    Frappe-. hooks .-&gt;CustomApp;
+</pre>
+<p>Now, I realise that most frameworks have event hooks but few have it for the number of events that Frappe does. Event hooks allow for some pretty great customisability. Especially when paired with overrides for DocType classes and Form scripts.</p>
+<blockquote>
+<p>We use overrides for classes and scripts very sparingly because it's easy to lose track of where some custom behaviour is coming from. Instead, we abstract some of these use cases into separate DocTypes, e.g. a <code>User Profile</code> linked to each <code>User</code>.</p>
+</blockquote>
+<h3 id="implementing-your-own-hooks">Implementing Your Own Hooks</h3>
+<p>For one of our applications, we wanted to provide a way for customer specific functionality to be added. Specifically, in this case, we needed to add custom validation to some APIs. Digging in the Frappe code base, we found <code>frappe.get_attr</code>. This function converts a dotted string path into a module or function that you can then execute. Here's how you use it.</p>
+<h4 id="add-a-place-to-define-hooks">Add a place to define hooks</h4>
+<p><img src="/images/warehouse_hooks.png" alt="Event Hooks" /></p>
+<h4 id="use-the-hook-in-your-api-function">Use the hook in your API function</h4>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span>@frappe.</span><span style="color:#bf616a;">whitelist</span><span>()
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">record_events</span><span>(**</span><span style="color:#bf616a;">kwargs</span><span>):
+</span><span>    </span><span style="color:#b48ead;">try</span><span>:
+</span><span>        prefix = kwargs.</span><span style="color:#bf616a;">get</span><span>(&#39;</span><span style="color:#a3be8c;">activity</span><span>&#39;).</span><span style="color:#bf616a;">lower</span><span>().</span><span style="color:#bf616a;">replace</span><span>(&quot; &quot;, &quot;</span><span style="color:#a3be8c;">_</span><span>&quot;)
+</span><span>        hook = frappe.db.</span><span style="color:#bf616a;">get_single_value</span><span>(
+</span><span>            &quot;</span><span style="color:#a3be8c;">IoTReady Traceability Settings</span><span>&quot;, </span><span style="color:#b48ead;">f</span><span>&quot;{prefix}</span><span style="color:#a3be8c;">_event_hook</span><span>&quot;
+</span><span>        )
+</span><span>        hook_result = </span><span style="color:#d08770;">None
+</span><span>        </span><span style="color:#b48ead;">if </span><span>hook:
+</span><span>            hook_result = frappe.</span><span style="color:#bf616a;">get_attr</span><span>(hook)(kwargs)
+</span><span>        result = </span><span style="color:#bf616a;">some_function</span><span>(kwargs)
+</span><span>        </span><span style="color:#b48ead;">if </span><span>hook_result:
+</span><span>            result.</span><span style="color:#bf616a;">update</span><span>(hook_result)
+</span><span>    </span><span style="color:#b48ead;">except </span><span>Exception </span><span style="color:#b48ead;">as </span><span>e:
+</span><span>        </span><span style="color:#96b5b4;">print</span><span>(&quot;</span><span style="color:#a3be8c;">Exception in record_events: </span><span>&quot;, </span><span style="color:#bf616a;">str</span><span>(e))
+</span><span>        result = {&quot;</span><span style="color:#a3be8c;">success</span><span>&quot;: </span><span style="color:#d08770;">False</span><span>, &quot;</span><span style="color:#a3be8c;">message</span><span>&quot;: </span><span style="color:#bf616a;">str</span><span>(e)}
+</span><span>    </span><span style="color:#b48ead;">return </span><span>result
+</span></code></pre>
+<p>Now, obviously, you have to implement the hook somewhere. We usually do this in a customer-specific application, <code>iotready_godesi</code> in the screenshot above.</p>
+<h3 id="pros-cons-of-inversion-of-control">Pros &amp; Cons Of Inversion Of Control</h3>
+<ul>
+<li><strong>+</strong> Using inversion of control allows you to use core APIs (and UIs) as they are and build/test your custom functionality independently.</li>
+<li><strong>+</strong> This allows for significant code reuse and keeps customer-specific code out of your core functionality.</li>
+<li><strong>-</strong> It does however mean that some functionality is harder to build and may require future, unforeseen requirements to the core functionality. </li>
+<li><strong>-</strong> All changes to the core have to be carefully evaluated to avoid impacting other customers.</li>
+</ul>
+<h2 id="conclusions">Conclusions</h2>
+<p>Layering and inversion of control are both very useful architectural principles for structuring code - especially when you are in a B2B space like us and often need customer-specific functionality. </p>
+<p>Our code base is small enough that making changes to follow these principles is not too difficult. Frappe encourages these architectures so we are on solid ground already. </p>
+<p>For the reasons listed above vis-a-vis inversion, we now lean towards using the layered approach as a default and use inversion of control as a pragmatic escape hatch. This means, for instance, that we are evaluating a small API rewrite so that the <code>record_events</code> API is exposed via the customer app rather than our core traceability app. More when we complete our evaluation.</p>
+
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true });
+</script>
+
+      </div>
+    <footer>
+        <p>
+          <small>
+            &copy; 2023 Tej Pochiraju. 
+            Built using <a href="https://www.lunarvim.org/">LunarVim</a> and 
+            <a href="https://www.getzola.org/">Zola</a>.
+          </small>
+        </p> 
+    </footer>
+    </section>
+  </body>
+
+  <style>
+html {
+  max-width: 70ch;
+  padding: 2em 1em;
+  margin: auto;
+  line-height: 1.75;
+  font-size: 1.25em;
+}
+
+h1,h2,h3,h4,h5,h6 {
+  margin: 1em 0 1em 0em;
+}
+
+p,ul,ol {
+  margin-bottom: 1em;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+
+nav ul {
+  list-style: none;  /* removes the default bullet points of ul */
+  padding: 0;        /* removes the default padding of ul */
+  display: flex;     /* makes the li items display in a row */
+  justify-content: flex-start; /* distributes the li items evenly with space around them */
+}
+
+nav ul li {
+  margin-right: 1em; /* Adds space to the right of each li element */
+}
+
+img {
+  max-width: 70ch;
+  height: auto;
+  max-height: 600px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add space between columns and rows */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th, td {
+  border-bottom: 10px; /* Adjust the color to match your page background */
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+}
+/* Highlight alternate rows */
+tr:nth-child(even) {
+  background-color: #e2e2e2;
+}
+blockquote{
+  border-left: 5px solid #e2e2e2;
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 1.0em;
+  }
+
+  nav ul li {
+    font-size: 0.9em;
+  }
+}
+  </style>
+</html>

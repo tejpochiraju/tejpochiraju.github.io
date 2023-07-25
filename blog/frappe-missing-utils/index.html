@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="The personal website of an experienced technologist 
+      and co-founder of IoTReady.co. Embracing frugal iterations over long-term plans.">
+    
+    <title>Utility Functions You Didn&#x27;t Know You Needed </title>
+    
+    <link rel="shortcut icon" href="/favicon.png">
+    <script defer data-domain="tej.sh" src="https://plausible.tej.sh/js/script.js"></script>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/work">Work</a></li>
+        <li><a href="https://iotready.co" target="_blank">IoTReady</a></li>
+        <li><a href="mailto:e@tej.sh">&#9993;</a></li>
+        <li><a href="https://www.linkedin.com/in/tejpochiraju" target="_blank">&#128279; In</a></li>
+      </ul>
+    </nav>
+    <section>
+      <div>
+        
+<h1>
+  Utility Functions You Didn&#x27;t Know You Needed
+</h1>
+<p style="margin-top:-40px;">
+<small>
+    2023-07-20 
+</small>
+</p>
+<p>This is intended as a living post that I will update as I find/write utility functions that I commonly reach out for.</p>
+<blockquote>
+<p>Last updated: 2023-07-20</p>
+</blockquote>
+<h2 id="frappe-specific">Frappe Specific</h2>
+<h3 id="enqueue-as-admin">Enqueue As Admin</h3>
+<p>This is useful for running side-effects that would otherwise need you to grant someone a lot of <code>DocType</code> permissions. It is important that the side-effects are relatively benign as this grants the caller Admin privileges for your function.</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">import </span><span>frappe
+</span><span style="color:#b48ead;">from </span><span>frappe.utils.background_jobs </span><span style="color:#b48ead;">import </span><span>(
+</span><span>    get_queue,
+</span><span>    execute_job,
+</span><span>    </span><span style="color:#bf616a;">RQ_JOB_FAILURE_TTL</span><span>,
+</span><span>    </span><span style="color:#bf616a;">RQ_RESULTS_TTL</span><span>,
+</span><span>)
+</span><span style="color:#b48ead;">from </span><span>frappe.utils </span><span style="color:#b48ead;">import </span><span>cstr
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">enqueue_as_admin</span><span>(</span><span style="color:#bf616a;">method</span><span>, **</span><span style="color:#bf616a;">kwargs</span><span>, </span><span style="color:#bf616a;">job_name</span><span>=</span><span style="color:#d08770;">None</span><span>, </span><span style="color:#bf616a;">queue_name</span><span>=&#39;</span><span style="color:#a3be8c;">long</span><span>&#39;, </span><span style="color:#bf616a;">timeout</span><span>=</span><span style="color:#d08770;">3600</span><span>):
+</span><span>    queue_args = {
+</span><span>        &quot;</span><span style="color:#a3be8c;">site</span><span>&quot;: frappe.local.site,
+</span><span>        &quot;</span><span style="color:#a3be8c;">user</span><span>&quot;: &quot;</span><span style="color:#a3be8c;">Administrator</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#a3be8c;">method</span><span>&quot;: method,
+</span><span>        &quot;</span><span style="color:#a3be8c;">event</span><span>&quot;: </span><span style="color:#d08770;">None</span><span>,
+</span><span>        &quot;</span><span style="color:#a3be8c;">job_name</span><span>&quot;: job_name or </span><span style="color:#bf616a;">cstr</span><span>(method),
+</span><span>        &quot;</span><span style="color:#a3be8c;">is_async</span><span>&quot;: </span><span style="color:#d08770;">True</span><span>,
+</span><span>        &quot;</span><span style="color:#a3be8c;">kwargs</span><span>&quot;: kwargs,
+</span><span>    }
+</span><span>    q = </span><span style="color:#bf616a;">get_queue</span><span>(queue_name)
+</span><span>    j = q.</span><span style="color:#bf616a;">enqueue_call</span><span>(
+</span><span>        execute_job,
+</span><span>        </span><span style="color:#bf616a;">timeout</span><span>=timeout,
+</span><span>        </span><span style="color:#bf616a;">kwargs</span><span>=queue_args,
+</span><span>        </span><span style="color:#bf616a;">at_front</span><span>=</span><span style="color:#d08770;">False</span><span>,
+</span><span>        </span><span style="color:#bf616a;">failure_ttl</span><span>=frappe.conf.</span><span style="color:#bf616a;">get</span><span>(&quot;</span><span style="color:#a3be8c;">rq_job_failure_ttl</span><span>&quot;) or </span><span style="color:#bf616a;">RQ_JOB_FAILURE_TTL</span><span>,
+</span><span>        </span><span style="color:#bf616a;">result_ttl</span><span>=frappe.conf.</span><span style="color:#bf616a;">get</span><span>(&quot;</span><span style="color:#a3be8c;">rq_results_ttl</span><span>&quot;) or </span><span style="color:#bf616a;">RQ_RESULTS_TTL</span><span>,
+</span><span>    )
+</span><span>
+</span></code></pre>
+<h3 id="get-file-path">Get File Path</h3>
+<p>Converts a <code>file_url</code>, e.g. from an <code>Attach</code> field in a document, into a path that can be passed to <code>open</code>.</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">import </span><span>frappe
+</span><span style="color:#b48ead;">import </span><span>os
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">get_file_path</span><span>(</span><span style="color:#bf616a;">file_url</span><span>):
+</span><span>    </span><span style="color:#b48ead;">if </span><span>not file_url:
+</span><span>        </span><span style="color:#b48ead;">return </span><span style="color:#d08770;">None
+</span><span>    site_dir = frappe.</span><span style="color:#bf616a;">get_site_path</span><span>()
+</span><span>    </span><span style="color:#b48ead;">if </span><span>file_url.</span><span style="color:#bf616a;">startswith</span><span>(&quot;</span><span style="color:#a3be8c;">/</span><span>&quot;):
+</span><span>        file_url = file_url[</span><span style="color:#d08770;">1</span><span>:]
+</span><span>    </span><span style="color:#b48ead;">return </span><span>os.path.</span><span style="color:#bf616a;">join</span><span>(site_dir, file_url)
+</span><span>
+</span></code></pre>
+<h2 id="datetime">DateTime</h2>
+<h3 id="date-to-week-of-month">Date To Week Of Month</h3>
+<p>Given a date, returns a number in the range 1-5.</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">from </span><span>datetime </span><span style="color:#b48ead;">import </span><span>timedelta
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">week_of_month</span><span>(</span><span style="color:#bf616a;">date</span><span>):
+</span><span>    month = date.month
+</span><span>    week = </span><span style="color:#d08770;">0
+</span><span>    </span><span style="color:#b48ead;">while </span><span>date.month == month:
+</span><span>        week += </span><span style="color:#d08770;">1
+</span><span>        date -= </span><span style="color:#bf616a;">timedelta</span><span>(</span><span style="color:#bf616a;">days</span><span>=</span><span style="color:#d08770;">7</span><span>)
+</span><span>    </span><span style="color:#b48ead;">if </span><span>week &gt; </span><span style="color:#d08770;">4</span><span>:
+</span><span>        week = </span><span style="color:#d08770;">4
+</span><span>    </span><span style="color:#b48ead;">return </span><span>week
+</span><span>
+</span></code></pre>
+<h3 id="first-day-of-the-week">First Day Of The Week</h3>
+<p>Given a month, year and week within the month, returns the day (number) of the first day of the week.</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">from </span><span>datetime </span><span style="color:#b48ead;">import </span><span>datetime, timedelta
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">get_first_day_of_week</span><span>(</span><span style="color:#bf616a;">year</span><span>, </span><span style="color:#bf616a;">month</span><span>, </span><span style="color:#bf616a;">week</span><span>):
+</span><span>    </span><span style="color:#65737e;">&quot;&quot;&quot;Returns the first day of the week.&quot;&quot;&quot;
+</span><span>    date = datetime.</span><span style="color:#bf616a;">strptime</span><span>(&quot;</span><span style="color:#d08770;">{}</span><span style="color:#a3be8c;">-</span><span style="color:#d08770;">{}</span><span style="color:#a3be8c;">-1</span><span>&quot;.</span><span style="color:#bf616a;">format</span><span>(year, month), &quot;</span><span style="color:#d08770;">%Y</span><span style="color:#a3be8c;">-</span><span style="color:#d08770;">%m</span><span style="color:#a3be8c;">-</span><span style="color:#d08770;">%d</span><span>&quot;)
+</span><span>    first_day_of_week = date + </span><span style="color:#bf616a;">timedelta</span><span>(</span><span style="color:#bf616a;">days</span><span>=(week - </span><span style="color:#d08770;">1</span><span>) * </span><span style="color:#d08770;">7</span><span>)
+</span><span>    </span><span style="color:#b48ead;">return </span><span>first_day_of_week
+</span><span>
+</span></code></pre>
+<h3 id="multi-format-date-time-parser">Multi-Format Date/Time Parser</h3>
+<p>I have many variants of this parser which handle different kinds of <code>datetime</code> formats and either return <code>None</code> or raise an error as needed in that context.</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">from </span><span>datetime </span><span style="color:#b48ead;">import </span><span>datetime
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">parse_date</span><span>(</span><span style="color:#bf616a;">row_date</span><span>):
+</span><span>    formats = [
+</span><span>        &quot;</span><span style="color:#d08770;">%d</span><span style="color:#a3be8c;">-</span><span style="color:#d08770;">%m</span><span style="color:#a3be8c;">-</span><span style="color:#d08770;">%Y</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#d08770;">%Y</span><span style="color:#a3be8c;">-</span><span style="color:#d08770;">%m</span><span style="color:#a3be8c;">-</span><span style="color:#d08770;">%d</span><span>&quot;,
+</span><span>        &quot;</span><span style="color:#d08770;">%d</span><span style="color:#a3be8c;">/</span><span style="color:#d08770;">%m</span><span style="color:#a3be8c;">/</span><span style="color:#d08770;">%Y</span><span>&quot;,
+</span><span>    ]
+</span><span>    </span><span style="color:#b48ead;">for </span><span style="color:#96b5b4;">format </span><span style="color:#b48ead;">in </span><span>formats:
+</span><span>        </span><span style="color:#b48ead;">try</span><span>:
+</span><span>            </span><span style="color:#b48ead;">return </span><span>datetime.</span><span style="color:#bf616a;">strptime</span><span>(row_date, </span><span style="color:#96b5b4;">format</span><span>).</span><span style="color:#bf616a;">date</span><span>()
+</span><span>        </span><span style="color:#b48ead;">except</span><span>:
+</span><span>            </span><span style="color:#b48ead;">pass
+</span><span>    </span><span style="color:#b48ead;">raise </span><span style="color:#bf616a;">ValueError</span><span>(&quot;</span><span style="color:#a3be8c;">Invalid date format for Date</span><span>&quot;, row_date)
+</span></code></pre>
+<h2 id="general-python">General Python</h2>
+<h3 id="random-string-generator">Random String Generator</h3>
+<p>There's also <code>frappe.generate_hash</code> that's a bit more opinionated. This function allows you to specify the characters to pick from. I use this to generate numeric OTPs by calling <code>random_string_generator(4, string.digits)</code></p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">import </span><span>random
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">random_string_generator</span><span>(</span><span style="color:#bf616a;">str_size</span><span>, </span><span style="color:#bf616a;">allowed_chars</span><span>):
+</span><span>    </span><span style="color:#b48ead;">return </span><span>&quot;&quot;.</span><span style="color:#bf616a;">join</span><span>(random.</span><span style="color:#bf616a;">choice</span><span>(allowed_chars) </span><span style="color:#b48ead;">for </span><span>x </span><span style="color:#b48ead;">in </span><span style="color:#96b5b4;">range</span><span>(str_size))
+</span><span>
+</span></code></pre>
+<h3 id="json-serialiser-for-datetime-values">JSON Serialiser For Datetime Values</h3>
+<p><code>json.dumps</code> fails on dictionaries with <code>datetime</code> values. This fixes it. As needed, I will sometimes add additional handlers into this function. See also <code>frappe.as_json</code>. </p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">date_json_serial</span><span>(</span><span style="color:#bf616a;">obj</span><span>):
+</span><span>    </span><span style="color:#b48ead;">if </span><span style="color:#96b5b4;">isinstance</span><span>(obj, (datetime, date)):
+</span><span>        </span><span style="color:#b48ead;">return </span><span>obj.</span><span style="color:#bf616a;">date</span><span>().</span><span style="color:#bf616a;">isoformat</span><span>()
+</span><span>    </span><span style="color:#b48ead;">raise </span><span style="color:#bf616a;">TypeError</span><span>(&quot;</span><span style="color:#a3be8c;">Type </span><span style="color:#d08770;">%s</span><span style="color:#a3be8c;"> not serializable</span><span>&quot; % </span><span style="color:#96b5b4;">type</span><span>(obj))
+</span></code></pre>
+<h3 id="round-as-humans-understand-it">Round As Humans Understand It</h3>
+<p><code>math.round</code> has some weird behaviour. This function implements <code>round</code> the way you and I understand it.</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">normal_round</span><span>(</span><span style="color:#bf616a;">num</span><span>, </span><span style="color:#bf616a;">ndigits</span><span>=</span><span style="color:#d08770;">0</span><span>):
+</span><span>    </span><span style="color:#65737e;">&quot;&quot;&quot;
+</span><span style="color:#65737e;">    Rounds a float to the specified number of decimal places.
+</span><span style="color:#65737e;">    num: the value to round
+</span><span style="color:#65737e;">    ndigits: the number of digits to round to
+</span><span style="color:#65737e;">    From: https://medium.com/thefloatingpoint/pythons-round-function-doesn-t-do-what-you-think-71765cfa86a8
+</span><span style="color:#65737e;">    &quot;&quot;&quot;
+</span><span>    </span><span style="color:#b48ead;">if </span><span>ndigits == </span><span style="color:#d08770;">0</span><span>:
+</span><span>        </span><span style="color:#b48ead;">return </span><span style="color:#bf616a;">int</span><span>(num + </span><span style="color:#d08770;">0.5</span><span>)
+</span><span>    </span><span style="color:#b48ead;">else</span><span>:
+</span><span>        digit_value = </span><span style="color:#d08770;">10</span><span>**ndigits
+</span><span>        </span><span style="color:#b48ead;">return </span><span style="color:#bf616a;">int</span><span>(num * digit_value + </span><span style="color:#d08770;">0.5</span><span>) / digit_value
+</span><span>
+</span></code></pre>
+<h3 id="dictionary-to-hashable-key">Dictionary To Hashable Key</h3>
+<p>Dictionary keys do not need to be strings - they can be lists, tuples etc. This is incredibly useful to track groups by categories. If you are currently creating keys that look like <code>f&quot;{category_1}-{category_2}&quot;</code>, you could be doing this: <code>(category_1, category_2)</code>. 
+But can you use a dictionary as a key for another dictionary? No. Think that's crazy? Maybe, but here's how you would do it - by converting the dictionary into a tuple of key, value pairs.</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">dict_to_hashable_key</span><span>(</span><span style="color:#bf616a;">d</span><span>):
+</span><span>    </span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">to_hashable</span><span>(</span><span style="color:#bf616a;">value</span><span>):
+</span><span>        </span><span style="color:#b48ead;">if </span><span style="color:#96b5b4;">isinstance</span><span>(value, list):
+</span><span>            </span><span style="color:#b48ead;">return </span><span style="color:#bf616a;">tuple</span><span>(</span><span style="color:#bf616a;">to_hashable</span><span>(item) </span><span style="color:#b48ead;">for </span><span>item </span><span style="color:#b48ead;">in </span><span>value)
+</span><span>        </span><span style="color:#b48ead;">return </span><span>value
+</span><span>
+</span><span>    </span><span style="color:#b48ead;">return </span><span style="color:#bf616a;">tuple</span><span>(</span><span style="color:#96b5b4;">sorted</span><span>((k, </span><span style="color:#bf616a;">to_hashable</span><span>(v)) </span><span style="color:#b48ead;">for </span><span>k, v </span><span style="color:#b48ead;">in </span><span>d.</span><span style="color:#bf616a;">items</span><span>()))
+</span></code></pre>
+
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true });
+</script>
+
+      </div>
+    <footer>
+        <p>
+          <small>
+            &copy; 2023 Tej Pochiraju. 
+            Built using <a href="https://www.lunarvim.org/">LunarVim</a> and 
+            <a href="https://www.getzola.org/">Zola</a>.
+          </small>
+        </p> 
+    </footer>
+    </section>
+  </body>
+
+  <style>
+html {
+  max-width: 70ch;
+  padding: 2em 1em;
+  margin: auto;
+  line-height: 1.75;
+  font-size: 1.25em;
+}
+
+h1,h2,h3,h4,h5,h6 {
+  margin: 1em 0 1em 0em;
+}
+
+p,ul,ol {
+  margin-bottom: 1em;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+
+nav ul {
+  list-style: none;  /* removes the default bullet points of ul */
+  padding: 0;        /* removes the default padding of ul */
+  display: flex;     /* makes the li items display in a row */
+  justify-content: flex-start; /* distributes the li items evenly with space around them */
+}
+
+nav ul li {
+  margin-right: 1em; /* Adds space to the right of each li element */
+}
+
+img {
+  max-width: 70ch;
+  height: auto;
+  max-height: 600px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add space between columns and rows */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th, td {
+  border-bottom: 10px; /* Adjust the color to match your page background */
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+}
+/* Highlight alternate rows */
+tr:nth-child(even) {
+  background-color: #e2e2e2;
+}
+blockquote{
+  border-left: 5px solid #e2e2e2;
+  padding-left: 1em;
+  margin-left: 0;
+  font-style: italic;
+  color: #1d1d1d;
+  font-family: sans-serif;
+}
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 1.0em;
+  }
+
+  nav ul li {
+    font-size: 0.9em;
+  }
+}
+  </style>
+</html>
